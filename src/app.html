@@ -106,21 +106,7 @@
       <div class="field">
         <span class="lab">記書き</span>
         <label class="check"><input type="checkbox" id="ki"> 本文の下に「記」を入れる</label>
-        <label class="check mt" id="ijoLab"><input type="checkbox" id="ijo" checked> 末尾に「以上」も入れる</label>
-      </div>
-
-      <!-- 空き行 -->
-      <div class="field">
-        <span class="lab">あとから書き込む空きの行数</span>
-        <div class="row">
-          <span style="font-size:13px;white-space:nowrap;">本文</span>
-          <input type="number" id="bodyRows" min="0" max="40" value="10" style="width:76px;" aria-label="本文の空き行数">
-          <span style="font-size:13px;">行</span>
-          <span style="font-size:13px;white-space:nowrap;margin-left:10px;">記書き</span>
-          <input type="number" id="kiRows" min="0" max="40" value="8" style="width:76px;" aria-label="記書きの空き行数">
-          <span style="font-size:13px;">行</span>
-        </div>
-        <div class="hint">Wordに空の行をこの数だけ用意します。あとから書き足せば自然に下へ伸びます。</div>
+        <div class="hint">実務上「以上」は入れないため、出力しません。</div>
       </div>
 
       <!-- 連絡先 -->
@@ -157,9 +143,8 @@
       <div class="p-body" id="vBody">本文はここに入ります（出力後にWordで書き込む欄）</div>
       <div class="p-ki" id="vKi" style="display:none;">記</div>
       <div class="p-body" id="vKiBody" style="display:none;">記書きはここに入ります</div>
-      <div class="p-ijo" id="vIjo" style="display:none;">以上</div>
-      <div class="p-spacer"></div>
       <div class="p-contact" id="vContact" style="display:none;"></div>
+      <div class="p-spacer"></div>
     </div>
     <div class="overflow-warn" id="warnOverflow" style="display:none;">
       内容が1ページに収まりません。空き行数を減らすか、あて先の件数をご確認ください。（Wordでは2ページ目に続きます）

@@ -9,6 +9,11 @@ var el = function(id){ return document.getElementById(id); };
 /* ---------- 状態 ---------- */
 var noMode = "num", sealMode = "omit", titleAlign = "center";
 var store = { signs: [], froms: [] };
+/* あとからWordで書き込むための空き行数（未確定事項#1の決定：固定値）。
+   ただし、あて先や表題が長くて1ページに収まらないときは自動で減らす。 */
+var BODY_ROWS = 10;
+var KI_ROWS   = 8;
+
 var STORE_KEY  = "kouyoubun.settings.v1";
 var TMPL_KEY   = "kouyoubun.template.v1";
 var customTmpl = null;   /* {name, b64} 差し替えたひな形 */
@@ -134,12 +139,18 @@ function collect(){
     title: v("title"),
     titleAlign: titleAlign,
     ki: useKi,
-    ijo: useKi && el("ijo").checked,
-    bodyRows: Math.max(0, Number(el("bodyRows").value) || 0),
-    kiRows: Math.max(0, Number(el("kiRows").value) || 0),
     contact: contact,
     contactHead: head
   };
+}
+
+/* Word出力と同じ計算で空き行数を決める（プレビューと出力をずらさないため） */
+function planRows(D){
+  if(window.Docx && window.Docx.planRows){
+    var r = window.Docx.planRows(D, charWidth);
+    return { body: r.body, ki: r.ki };
+  }
+  return { body: BODY_ROWS, ki: KI_ROWS };
 }
 
 /* ---------- プレビュー描画 ---------- */
@@ -180,15 +191,13 @@ function render(){
   el("vTitle").className = "p-title" + (D.titleAlign === "left" ? " left" : "");
   el("vTitle").style.display = D.title ? "" : "none";
 
-  /* 空き行 */
-  setRows(el("vBody"), D.bodyRows);
-  setRows(el("vKiBody"), D.ki ? D.kiRows : 0);
+  /* 空き行（Word出力と同じ行数） */
+  var rows = planRows(D);
+  setRows(el("vBody"), rows.body);
+  setRows(el("vKiBody"), D.ki ? rows.ki : 0);
 
-  /* 記・以上 */
+  /* 記 */
   el("vKi").style.display = D.ki ? "" : "none";
-  el("ijo").disabled = !D.ki;
-  el("ijoLab").classList.toggle("off", !D.ki);
-  el("vIjo").style.display = D.ijo ? "" : "none";
 
   /* 連絡先 */
   var vc = el("vContact");
@@ -488,8 +497,7 @@ el("btnClear").addEventListener("click", function(){
     .forEach(function(n){ n.value = ""; });
   el("yy").value = ""; el("mm").value = ""; el("dd").value = "";
   el("signSel").value = ""; el("fromSel").value = "";
-  el("ki").checked = false; el("ijo").checked = true;
-  el("bodyRows").value = 10; el("kiRows").value = 8;
+  el("ki").checked = false;
   render();
 });
 
