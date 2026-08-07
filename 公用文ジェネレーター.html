@@ -106,6 +106,8 @@ input:disabled,select:disabled{background:#F2F4F7;color:#9AA3B0;}
 .brace{width:1.2em;margin:0 .9em;align-self:stretch;flex:none;}
 .brace svg{width:100%;height:100%;display:block;}
 .to-honor{display:flex;align-items:center;}
+/* 2行書きあて先の続き行（1文字下げ） */
+.to-cont{padding-left:1em;}
 
 /* ページからあふれたときの注意書き */
 .overflow-warn{margin-top:10px;font-size:12px;color:var(--shu);background:#FCF3F2;
@@ -222,14 +224,16 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
       <!-- 受信者名 -->
       <div class="field">
         <span class="lab">受信者名（あて先）</span>
-        <textarea id="to" rows="3" placeholder="1行に1あて先&#10;例：&#10;島根県商工会連合会　会長&#10;島根県商工会議所連合会　会頭"></textarea>
+        <textarea id="to" rows="4" placeholder="1行に1あて先&#10;例：&#10;島根県商工会連合会　会長&#10;島根県商工会議所連合会　会頭"></textarea>
         <div class="row mt">
           <select id="honor" style="width:auto;flex:1;" aria-label="敬称">
             <option>様</option><option>御中</option><option>殿</option>
             <option>各位</option><option value="">敬称なし</option>
           </select>
         </div>
-        <div class="hint">2件以上入れると、自動で <b>波括弧</b> でまとめて敬称を1つ付けます。</div>
+        <div class="hint">2件以上入れると、自動で <b>波括弧</b> でまとめて敬称を1つ付けます。<br>
+        1件を2行に分けたいときは、<b>2行目の先頭に空白を1つ入れて</b>ください。前の行の続きとして、1文字下げて出力します。<br>
+        <span style="color:#8A94A6;">例：「キオクシアホールディングス株式会社」／改行して「　代表取締役」 → 代表取締役の右に敬称が付きます</span></div>
       </div>
 
       <!-- 発信者名 -->
@@ -576,13 +580,19 @@ function contactShape(lines){
     "</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>";
 }
 
+/* ---------- あて先 ---------- */
+/* 続きの行は1文字下がるぶん、幅を1文字ぶん多く見積もる */
+function rowWidth(r, cw){ return (cw(r.text) + (r.cont ? 1 : 0)) * TW_CHAR; }
+/* 幅を測るための文字列（続き行には下げぶんの全角スペースを足す） */
+function rowSample(r){ return (r.cont ? "　" : "") + r.text; }
+
 /* ---------- あて先の表 ---------- */
 /* 罫線なし3列。中央・右のセルを上下中央にすることで、
    あて先が偶数行でも敬称がまん中に来ます。 */
-function toTable(names, honor, wName, cw){
+function toTable(rows, honor, wName, cw){
   /* 長いあて先は列の中で折り返す。その折り返しも数えて波括弧の高さを決める。 */
   var lines = 0;
-  names.forEach(function(n){ lines += Math.max(1, Math.ceil(cw(n) * TW_CHAR / wName)); });
+  rows.forEach(function(r){ lines += Math.max(1, Math.ceil(rowWidth(r, cw) / wName)); });
 
   var wHonor = Math.max(TW_CHAR, Math.ceil(cw(honor)) * TW_CHAR);
   var noBorder = ["top", "left", "bottom", "right", "insideH", "insideV"]
@@ -591,8 +601,12 @@ function toTable(names, honor, wName, cw){
   /* 各行の行送りを18ptに固定 → 「行数×18pt」で作った波括弧とぴったり合う */
   var lineFix = '<w:snapToGrid w:val="0"/><w:spacing w:line="' + TW_LINE + '" w:lineRule="exact"/>';
 
-  var namesCell = names.map(function(n){
-    return para(lineFix + '<w:jc w:val="distribute"/>', run(n));
+  /* 続きの行（2行書きの2行目）は1文字下げるだけ。均等割り付けはかけない。
+     ここで散らすと「代　表　取　締　役」のように間延びしてしまうため。 */
+  var namesCell = rows.map(function(r){
+    return r.cont
+      ? para(lineFix + '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text))
+      : para(lineFix + '<w:jc w:val="distribute"/>', run(r.text));
   }).join("");
 
   var tc = function(w, inner, mid){
@@ -635,15 +649,15 @@ function planRows(D, cw){
   if(D.date)  used += 1;
   if(D.docno || D.date) used += 1;               /* 空行 */
 
-  if(D.to.length === 1){
-    used += 1 + 1;                               /* あて先＋空行 */
-  }else if(D.to.length >= 2){
+  if(D.to.length && D.toEntries <= 1){
+    used += D.to.length + 1;                     /* あて先（2行書きなら2行）＋空行 */
+  }else if(D.to.length){
     var wHonor = D.honor ? Math.max(TW_CHAR, Math.ceil(cw(D.honor)) * TW_CHAR) : 0;
     var limit  = BODY_W - TW_CHAR - (D.honor ? TW_BRACE_COL + wHonor : 0);
     var wName  = 0;
-    D.to.forEach(function(n){ wName = Math.max(wName, cw(n)); });
+    D.to.forEach(function(r){ wName = Math.max(wName, cw(rowSample(r))); });
     wName = Math.min(Math.ceil(wName) * TW_CHAR, limit) || TW_CHAR;
-    D.to.forEach(function(n){ used += countLines(n, wName, cw); });
+    D.to.forEach(function(r){ used += countLines(rowSample(r), wName, cw); });
     used += 1;                                   /* 空行 */
   }
 
@@ -694,23 +708,33 @@ function buildBody(D, cw){
   if(D.docno || D.date) out.push(blank('<w:jc w:val="right"/>'));
 
   /* --- あて先 --- */
-  if(D.to.length === 1){
-    /* 1件のときは波括弧を出さず、右に全角1つ空けて敬称 */
-    out.push(para('<w:ind w:firstLineChars="100" w:firstLine="210"/>',
-                  run(D.to[0] + (D.honor ? "　" + D.honor : ""))));
+  if(D.to.length && D.toEntries <= 1){
+    /* 1件（2行書きを含む）のときは波括弧を出さず、
+       最後の行の右に全角1つ空けて敬称を置く。
+       続きの行は、あて先全体の1文字下げに加えてもう1文字下げる。 */
+    var last = D.to.length - 1;
+    D.to.forEach(function(r, i){
+      var text = r.text + (i === last && D.honor ? "　" + D.honor : "");
+      var ind = r.cont
+        ? '<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>'
+        : '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>';
+      out.push(para(ind, run(text)));
+    });
     out.push(blank(""));
-  }else if(D.to.length >= 2){
+  }else if(D.to.length){
     var wHonor = D.honor ? Math.max(TW_CHAR, Math.ceil(cw(D.honor)) * TW_CHAR) : 0;
     /* 表全体が本文の幅からはみ出さないよう、あて先の列幅に上限をかける */
     var limit = BODY_W - TW_CHAR - (D.honor ? TW_BRACE_COL + wHonor : 0);
-    var wName = groupWidth(D.to, limit);
+    var wName = groupWidth(D.to.map(rowSample), limit);
 
     if(D.honor){
       out.push(toTable(D.to, D.honor, wName, cw));
     }else{
       /* 敬称なし：波括弧も敬称の列も出さない。均等割り付けだけそろえる。 */
-      D.to.forEach(function(n){
-        out.push(para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(n)));
+      D.to.forEach(function(r){
+        out.push(r.cont
+          ? para('<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>', run(r.text))
+          : para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(r.text)));
       });
     }
     out.push(blank(""));
@@ -948,7 +972,19 @@ function kintoWari(nodes){
 /* ---------- 入力値をひとまとめに取り出す ---------- */
 function collect(){
   var v = function(id){ return el(id).value.trim(); };
-  var names = el("to").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+
+  /* あて先。行頭に空白を置いた行は、前の行の「続き」＝2行書きとして扱う。
+       キオクシアホールディングス株式会社
+       　代表取締役
+     で1件（2行）。続きの行は1文字下げて出し、均等割り付けはかけない。 */
+  var rows = [];
+  el("to").value.split("\n").forEach(function(line){
+    var t = line.replace(/[\s\u3000]+$/, "");
+    if(!t.replace(/[\s\u3000]/g, "")) return;          /* 空行は飛ばす */
+    var cont = rows.length > 0 && /^[ \t\u3000]/.test(t);
+    rows.push({ text: t.replace(/^[\s\u3000]+/, ""), cont: cont });
+  });
+  var entries = rows.filter(function(r){ return !r.cont; }).length;
 
   var docno = "";
   if(noMode === "jimu") docno = "事務連絡";
@@ -977,7 +1013,8 @@ function collect(){
   return {
     docno: docno,
     date: dateStr,
-    to: names,
+    to: rows,
+    toEntries: entries,
     honor: el("honor").value,
     from1: v("from1"),
     from2: v("from2"),
@@ -1019,12 +1056,20 @@ function render(){
   var vTo = el("vTo");
   if(D.to.length === 0){
     vTo.innerHTML = "";
+  }else if(D.toEntries <= 1){
+    /* 1件（2行書きを含む）：波括弧は出さず、最後の行の右に全角1つ空けて敬称 */
+    var last = D.to.length - 1;
+    vTo.innerHTML = D.to.map(function(r, i){
+      var t = r.text + (i === last && D.honor ? "　" + D.honor : "");
+      return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" + esc(t) + "</div>";
+    }).join("");
   }else{
-    var cells = D.to.map(function(n){ return '<div><span class="kinto">' + esc(n) + "</span></div>"; }).join("");
-    var needBrace = D.to.length >= 2 && D.honor;
+    var cells = D.to.map(function(r){
+      return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" +
+        (r.cont ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
+    }).join("");
     vTo.innerHTML = '<div class="to-group"><div class="to-names">' + cells + "</div>" +
-      (needBrace ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>"
-                 : (D.honor ? '<div class="to-honor">　' + esc(D.honor) + "</div>" : "")) + "</div>";
+      (D.honor ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>" : "") + "</div>";
     kintoWari(vTo.querySelectorAll(".kinto"));
   }
 

@@ -114,7 +114,19 @@ function kintoWari(nodes){
 /* ---------- 入力値をひとまとめに取り出す ---------- */
 function collect(){
   var v = function(id){ return el(id).value.trim(); };
-  var names = el("to").value.split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+
+  /* あて先。行頭に空白を置いた行は、前の行の「続き」＝2行書きとして扱う。
+       キオクシアホールディングス株式会社
+       　代表取締役
+     で1件（2行）。続きの行は1文字下げて出し、均等割り付けはかけない。 */
+  var rows = [];
+  el("to").value.split("\n").forEach(function(line){
+    var t = line.replace(/[\s\u3000]+$/, "");
+    if(!t.replace(/[\s\u3000]/g, "")) return;          /* 空行は飛ばす */
+    var cont = rows.length > 0 && /^[ \t\u3000]/.test(t);
+    rows.push({ text: t.replace(/^[\s\u3000]+/, ""), cont: cont });
+  });
+  var entries = rows.filter(function(r){ return !r.cont; }).length;
 
   var docno = "";
   if(noMode === "jimu") docno = "事務連絡";
@@ -143,7 +155,8 @@ function collect(){
   return {
     docno: docno,
     date: dateStr,
-    to: names,
+    to: rows,
+    toEntries: entries,
     honor: el("honor").value,
     from1: v("from1"),
     from2: v("from2"),
@@ -185,12 +198,20 @@ function render(){
   var vTo = el("vTo");
   if(D.to.length === 0){
     vTo.innerHTML = "";
+  }else if(D.toEntries <= 1){
+    /* 1件（2行書きを含む）：波括弧は出さず、最後の行の右に全角1つ空けて敬称 */
+    var last = D.to.length - 1;
+    vTo.innerHTML = D.to.map(function(r, i){
+      var t = r.text + (i === last && D.honor ? "　" + D.honor : "");
+      return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" + esc(t) + "</div>";
+    }).join("");
   }else{
-    var cells = D.to.map(function(n){ return '<div><span class="kinto">' + esc(n) + "</span></div>"; }).join("");
-    var needBrace = D.to.length >= 2 && D.honor;
+    var cells = D.to.map(function(r){
+      return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" +
+        (r.cont ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
+    }).join("");
     vTo.innerHTML = '<div class="to-group"><div class="to-names">' + cells + "</div>" +
-      (needBrace ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>"
-                 : (D.honor ? '<div class="to-honor">　' + esc(D.honor) + "</div>" : "")) + "</div>";
+      (D.honor ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>" : "") + "</div>";
     kintoWari(vTo.querySelectorAll(".kinto"));
   }
 
