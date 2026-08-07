@@ -58,6 +58,11 @@ input:disabled,select:disabled{background:#F2F4F7;color:#9AA3B0;}
 .btn-sub:hover{background:#EAEFF7;}
 .btn:disabled{background:#E3E7EE;border-color:var(--line);color:#9AA3B0;cursor:default;}
 
+/* 埋め込み表示のときだけ出すお知らせ */
+.embed-note{background:#FCF3F2;border-bottom:1px solid #E6C4C0;color:#7A2E25;
+  font-size:12.5px;line-height:1.8;padding:11px 20px;}
+.embed-note b{color:#8F3227;}
+
 /* ---------- プレビュー ---------- */
 .preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
 .preview-head h2{font-size:13px;letter-spacing:.12em;color:var(--ai);margin:0;font-weight:600;}

@@ -18,6 +18,11 @@ var STORE_KEY  = "kouyoubun.settings.v1";
 var TMPL_KEY   = "kouyoubun.template.v1";
 var customTmpl = null;   /* {name, b64} 差し替えたひな形 */
 
+/* 別ページの中に埋め込まれて表示されているか。
+   埋め込みだと、ブラウザ側でファイルのダウンロードが止められる。 */
+var embedded = false;
+try{ embedded = window.self !== window.top; }catch(e){ embedded = true; }
+
 /* ---------- トースト ---------- */
 var tTimer;
 function toast(msg, warn){
@@ -484,7 +489,9 @@ el("btnOut").addEventListener("click", function(){
   var b64 = customTmpl ? customTmpl.b64 : (window.__TEMPLATE_B64__ || "");
   window.Docx.build(b64, D, charWidth).then(function(blob){
     download(blob, outFilename(D));
-    toast("Wordファイルを出力しました。ダウンロードフォルダをご確認ください。");
+    toast(embedded
+      ? "この埋め込み表示ではダウンロードできません。公用文ジェネレーター.html を直接開いてお使いください。"
+      : "Wordファイルを出力しました。ダウンロードフォルダをご確認ください。", embedded);
   }).catch(function(e){
     console.error(e);
     toast("出力に失敗しました：" + (e && e.message ? e.message : e), true);
@@ -502,6 +509,7 @@ el("btnClear").addEventListener("click", function(){
 });
 
 /* ---------- 起動 ---------- */
+if(embedded) el("embedNote").style.display = "";
 loadStore();
 loadTmpl();
 refreshSign();

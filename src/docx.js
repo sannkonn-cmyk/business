@@ -377,6 +377,37 @@ function buildBody(D, cw){
 }
 
 /* ---------- ひな形に差し込んで .docx を作る ---------- */
+
+/* ひな形には作成時のレビューコメントが残っている。そのまま持ち出すと
+   作る文書すべてにコメントが同梱されてしまうので、関連部品ごと取り除く。 */
+/* JSZip は既定でフォルダ項目も作るが、Wordのひな形には無いので作らせない */
+var NO_FOLDERS = { createFolders: false };
+
+var COMMENT_PARTS = ["comments.xml", "commentsExtended.xml", "commentsIds.xml",
+                     "commentsExtensible.xml", "people.xml"];
+function stripComments(zip){
+  var present = COMMENT_PARTS.filter(function(n){ return !!zip.file("word/" + n); });
+  if(!present.length) return Promise.resolve();
+  present.forEach(function(n){ zip.remove("word/" + n); });
+
+  var jobs = [];
+  var rels = zip.file("word/_rels/document.xml.rels");
+  if(rels) jobs.push(rels.async("string").then(function(x){
+    present.forEach(function(n){
+      x = x.replace(new RegExp('<Relationship[^>]*Target="' + n + '"[^>]*/>', "g"), "");
+    });
+    zip.file("word/_rels/document.xml.rels", x, NO_FOLDERS);
+  }));
+  var ct = zip.file("[Content_Types].xml");
+  if(ct) jobs.push(ct.async("string").then(function(x){
+    present.forEach(function(n){
+      x = x.replace(new RegExp('<Override[^>]*PartName="/word/' + n + '"[^>]*/>', "g"), "");
+    });
+    zip.file("[Content_Types].xml", x, NO_FOLDERS);
+  }));
+  return Promise.all(jobs);
+}
+
 function b64ToBytes(b64){
   var bin = atob(b64), n = bin.length, a = new Uint8Array(n);
   for(var i = 0; i < n; i++) a[i] = bin.charCodeAt(i);
@@ -400,8 +431,10 @@ function build(templateB64, D, cw){
            <w:sectPr>（用紙・余白・行送り）はひな形のまま残します。 */
         var head = xml.slice(0, i + "<w:body>".length);
         var tail = xml.slice(j);
-        zip.file("word/document.xml", head + buildBody(D, cw) + tail);
+        zip.file("word/document.xml", head + buildBody(D, cw) + tail, NO_FOLDERS);
 
+        return stripComments(zip);
+      }).then(function(){
         return zip.generateAsync({
           type: "blob",
           mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

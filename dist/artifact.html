@@ -59,6 +59,11 @@ input:disabled,select:disabled{background:#F2F4F7;color:#9AA3B0;}
 .btn-sub:hover{background:#EAEFF7;}
 .btn:disabled{background:#E3E7EE;border-color:var(--line);color:#9AA3B0;cursor:default;}
 
+/* 埋め込み表示のときだけ出すお知らせ */
+.embed-note{background:#FCF3F2;border-bottom:1px solid #E6C4C0;color:#7A2E25;
+  font-size:12.5px;line-height:1.8;padding:11px 20px;}
+.embed-note b{color:#8F3227;}
+
 /* ---------- プレビュー ---------- */
 .preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
 .preview-head h2{font-size:13px;letter-spacing:.12em;color:var(--ai);margin:0;font-weight:600;}
@@ -151,6 +156,13 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
   <button class="hbtn" id="btnTmpl" type="button">ひな形の確認・差し替え</button>
   <button class="hbtn" id="btnBackup" type="button">設定の書き出し・読み込み</button>
 </header>
+
+<div class="embed-note" id="embedNote" role="note" style="display:none;">
+  <b>この画面は「埋め込み表示」です。</b>見た目と項目の確認にはそのままお使いいただけますが、
+  ブラウザの決まりで <b>Wordファイルのダウンロードだけが止められます</b>。
+  実際に文書を作るときは <b>公用文ジェネレーター.html</b> をパソコンに保存し、
+  ダブルクリックで開いてお使いください。
+</div>
 
 <div class="wrap">
 
@@ -735,6 +747,37 @@ function buildBody(D, cw){
 }
 
 /* ---------- ひな形に差し込んで .docx を作る ---------- */
+
+/* ひな形には作成時のレビューコメントが残っている。そのまま持ち出すと
+   作る文書すべてにコメントが同梱されてしまうので、関連部品ごと取り除く。 */
+/* JSZip は既定でフォルダ項目も作るが、Wordのひな形には無いので作らせない */
+var NO_FOLDERS = { createFolders: false };
+
+var COMMENT_PARTS = ["comments.xml", "commentsExtended.xml", "commentsIds.xml",
+                     "commentsExtensible.xml", "people.xml"];
+function stripComments(zip){
+  var present = COMMENT_PARTS.filter(function(n){ return !!zip.file("word/" + n); });
+  if(!present.length) return Promise.resolve();
+  present.forEach(function(n){ zip.remove("word/" + n); });
+
+  var jobs = [];
+  var rels = zip.file("word/_rels/document.xml.rels");
+  if(rels) jobs.push(rels.async("string").then(function(x){
+    present.forEach(function(n){
+      x = x.replace(new RegExp('<Relationship[^>]*Target="' + n + '"[^>]*/>', "g"), "");
+    });
+    zip.file("word/_rels/document.xml.rels", x, NO_FOLDERS);
+  }));
+  var ct = zip.file("[Content_Types].xml");
+  if(ct) jobs.push(ct.async("string").then(function(x){
+    present.forEach(function(n){
+      x = x.replace(new RegExp('<Override[^>]*PartName="/word/' + n + '"[^>]*/>', "g"), "");
+    });
+    zip.file("[Content_Types].xml", x, NO_FOLDERS);
+  }));
+  return Promise.all(jobs);
+}
+
 function b64ToBytes(b64){
   var bin = atob(b64), n = bin.length, a = new Uint8Array(n);
   for(var i = 0; i < n; i++) a[i] = bin.charCodeAt(i);
@@ -758,8 +801,10 @@ function build(templateB64, D, cw){
            <w:sectPr>（用紙・余白・行送り）はひな形のまま残します。 */
         var head = xml.slice(0, i + "<w:body>".length);
         var tail = xml.slice(j);
-        zip.file("word/document.xml", head + buildBody(D, cw) + tail);
+        zip.file("word/document.xml", head + buildBody(D, cw) + tail, NO_FOLDERS);
 
+        return stripComments(zip);
+      }).then(function(){
         return zip.generateAsync({
           type: "blob",
           mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -797,6 +842,11 @@ var KI_ROWS   = 8;
 var STORE_KEY  = "kouyoubun.settings.v1";
 var TMPL_KEY   = "kouyoubun.template.v1";
 var customTmpl = null;   /* {name, b64} 差し替えたひな形 */
+
+/* 別ページの中に埋め込まれて表示されているか。
+   埋め込みだと、ブラウザ側でファイルのダウンロードが止められる。 */
+var embedded = false;
+try{ embedded = window.self !== window.top; }catch(e){ embedded = true; }
 
 /* ---------- トースト ---------- */
 var tTimer;
@@ -1264,7 +1314,9 @@ el("btnOut").addEventListener("click", function(){
   var b64 = customTmpl ? customTmpl.b64 : (window.__TEMPLATE_B64__ || "");
   window.Docx.build(b64, D, charWidth).then(function(blob){
     download(blob, outFilename(D));
-    toast("Wordファイルを出力しました。ダウンロードフォルダをご確認ください。");
+    toast(embedded
+      ? "この埋め込み表示ではダウンロードできません。公用文ジェネレーター.html を直接開いてお使いください。"
+      : "Wordファイルを出力しました。ダウンロードフォルダをご確認ください。", embedded);
   }).catch(function(e){
     console.error(e);
     toast("出力に失敗しました：" + (e && e.message ? e.message : e), true);
@@ -1282,6 +1334,7 @@ el("btnClear").addEventListener("click", function(){
 });
 
 /* ---------- 起動 ---------- */
+if(embedded) el("embedNote").style.display = "";
 loadStore();
 loadTmpl();
 refreshSign();
