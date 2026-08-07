@@ -37,8 +37,13 @@ var KI_ROWS   = 8;    /* 記書き */
 /* 1ページに入る行数 = (紙の高さ − 上余白 − 下余白) ÷ 行送り
    = (16838 − 1985 − 1701) ÷ 360 = 36行 */
 var PAGE_LINES = 36;
-/* 連絡先の枠が占める見当（空行1行＋28mmの枠ぶん） */
-var CONTACT_LINES = 5;
+/* 連絡先の枠（ひな形と同じ 60.1mm × 28.0mm）。中身が多いときは下へ伸ばす。 */
+var TXBX_W    = 2162175;   /* 枠の幅（EMU） */
+var TXBX_H    = 1009650;   /* 枠の高さの下限（EMU）＝28mm */
+var TXBX_INS_X = 91440;    /* 枠の内側の余白（左右それぞれ） */
+var TXBX_INS_Y = 45720;    /* 枠の内側の余白（上下それぞれ） */
+/* 枠の中で文字が使える幅（twips）。全角にして約14.8文字ぶん。 */
+var TXBX_INNER = Math.round((TXBX_W - TXBX_INS_X * 2) / EMU_TW);
 
 var NS_A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
 var URI_WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
@@ -167,14 +172,33 @@ function kintoLabel(label, targetTw, id){
   }).join("");
 }
 
-/* 連絡先のテキストボックス：黒の実線枠、60.1mm×28.0mm。ひな形と同じ大きさ・位置。 */
-function contactShape(lines){
+/* 枠の中で何行になるかの見積もり。長いメールアドレスは折り返る。 */
+function contactLineCount(lines, cw){
+  var n = 0;
+  lines.forEach(function(c){
+    /* 見出しは3文字幅にそろえてあり、そのあとに「：」が1文字 */
+    var w = (c.label ? 4 : 0) + cw(c.text);
+    n += Math.max(1, Math.ceil(w * TW_CHAR / TXBX_INNER));
+  });
+  return n;
+}
+/* 中身に必要な枠の高さ（EMU）。ひな形の28mmを下限とし、足りなければ下へ伸ばす。 */
+function contactHeight(lines, cw){
+  /* 4行なら 4×18pt＋上下余白 ＝ 1,005,840 EMU となり、ひな形の28mm（1,009,650）とほぼ一致する。
+     つまりこの式は、ひな形の枠の作りをそのまま言い直したもの。 */
+  return Math.max(TXBX_H, contactLineCount(lines, cw) * EMU_LINE + TXBX_INS_Y * 2);
+}
+
+/* 連絡先のテキストボックス：黒の実線枠、幅はひな形どおり60.1mm。
+   高さは28mmを下限に、中身がはみ出さないところまで伸ばす。 */
+function contactShape(lines, cw){
   var inner = lines.map(function(c){
     var body = c.label
       ? kintoLabel(c.label, TW_BRACE_COL, c.id) + run("：" + c.text)
       : run(c.text);
     return "<w:p><w:pPr>" + TXBX_PPR + rPr() + "</w:pPr>" + body + "</w:p>";
   }).join("");
+  var cy = contactHeight(lines, cw);
 
   return "<w:r>" + rPr({ noProof: true }) + "<w:drawing>" +
     '<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" ' +
@@ -182,12 +206,12 @@ function contactShape(lines){
     '<wp:simplePos x="0" y="0"/>' +
     '<wp:positionH relativeFrom="column"><wp:posOffset>3463290</wp:posOffset></wp:positionH>' +
     '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
-    '<wp:extent cx="2162175" cy="1009650"/>' +
+    '<wp:extent cx="' + TXBX_W + '" cy="' + cy + '"/>' +
     '<wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>' +
     '<wp:docPr id="103" name="連絡先"/><wp:cNvGraphicFramePr/>' +
     "<a:graphic " + NS_A + '><a:graphicData uri="' + URI_WPS + '">' +
     '<wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr>' +
-    '<a:xfrm><a:off x="0" y="0"/><a:ext cx="2162175" cy="1009650"/></a:xfrm>' +
+    '<a:xfrm><a:off x="0" y="0"/><a:ext cx="' + TXBX_W + '" cy="' + cy + '"/></a:xfrm>' +
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
     '<a:solidFill><a:schemeClr val="lt1"/></a:solidFill>' +
     '<a:ln w="6350"><a:solidFill><a:prstClr val="black"/></a:solidFill></a:ln>' +
@@ -284,7 +308,8 @@ function planRows(D, cw){
   used += 1;                                     /* 本文の前の空行 */
 
   if(D.ki) used += 1 + 1 + KI_ROWS;              /* 空行＋「記」＋記書きの空き行 */
-  if(D.contact.length) used += CONTACT_LINES;
+  /* 連絡先は「空行1行＋枠の高さぶん」。枠が伸びたらそのぶん多く確保する。 */
+  if(D.contact.length) used += 1 + Math.max(4, contactLineCount(D.contact, cw));
 
   /* 残りは全部、本文の空き行にあてる。こうすると体裁だけの状態でちょうど
      1ページ分になり、連絡先の枠も自然に用紙の下のほうへ落ち着く。 */
@@ -395,7 +420,7 @@ function buildBody(D, cw){
   if(D.contact.length){
     var lines = D.contact.map(function(c, i){ return { label: c.label, text: c.text, id: 1010 + i }; });
     out.push(blank(""));
-    out.push(para('<w:pStyle w:val="af3"/>', contactShape(lines)));
+    out.push(para('<w:pStyle w:val="af3"/>', contactShape(lines, cw)));
   }
 
   var xml = out.join("");

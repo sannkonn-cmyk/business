@@ -101,14 +101,21 @@ function braceSVG(){
     'stroke-width="1.3" vector-effect="non-scaling-stroke" stroke-linecap="round"/></svg></span>';
 }
 
-/* 均等割り付け：渡した要素すべてを、一番長いものの幅にそろえる */
+/* 均等割り付け：渡した要素すべてを、一番長いものの幅にそろえる。
+   幅を決めたあとも white-space:nowrap のままにしておくのが肝心。
+   normal に戻すと、拡大表示などで幅が端数になったとき、全角スペースの
+   ところで折り返してしまう（例：「令和8年8月　日」の「日」が次行へ）。
+   nowrap でも text-align-last:justify は効くので、見た目は変わらない。 */
 function kintoWari(nodes){
   nodes = Array.prototype.slice.call(nodes);
   if(!nodes.length) return;
   var max = 0;
   nodes.forEach(function(n){ n.style.width = "auto"; n.style.whiteSpace = "nowrap"; });
+  /* 幅は offsetWidth（拡大率の影響を受けない値）で測る。
+     getBoundingClientRect は拡大率がかかった値を返すため、
+     ブラウザを拡大した状態で測ると幅を大きく取りすぎてしまう。 */
   nodes.forEach(function(n){ max = Math.max(max, n.offsetWidth); });
-  nodes.forEach(function(n){ n.style.whiteSpace = "normal"; n.style.width = max + "px"; });
+  nodes.forEach(function(n){ n.style.width = max + "px"; });
 }
 
 /* ---------- 入力値をひとまとめに取り出す ---------- */

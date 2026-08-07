@@ -88,9 +88,13 @@ input:disabled,select:disabled{background:#F2F4F7;color:#9AA3B0;}
   font-family:var(--gothic);font-size:12px;letter-spacing:.06em;text-align:center;padding:4px;line-height:1.7;}
 .p-ki{text-align:center;letter-spacing:.5em;margin:.2em 0;}
 .p-spacer{flex:1;min-height:0;}
-/* 連絡先はひな形どおり段落基準。本文を書き足すと下へ動きます（未確定事項#2の決定） */
+/* 連絡先はひな形どおり段落基準。本文を書き足すと下へ動きます（未確定事項#2の決定）。
+   幅は本文150mmに対する60.1mm＝40%。行送りは本文と同じ18pt（用紙の文字の2em）に
+   そろえてあるので、Wordの枠と行数・高さが一致します。
+   高さの下限はひな形と同じ28mm＝約4.4行ぶん。中身が増えれば下へ伸びます。 */
 .p-contact{margin:1.6em 0 0 auto;border:1px solid #8894A8;padding:.5em .9em;font-size:.86em;
-  line-height:1.75;width:40%;min-width:14em;white-space:pre-line;}
+  line-height:2.33;width:40%;min-width:14em;white-space:pre-line;min-height:10.3em;
+  overflow-wrap:anywhere;}
 
 /* 連名あて先の波括弧 */
 .to-group{display:flex;align-items:stretch;gap:0;}
