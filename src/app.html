@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公用文ジェネレーター</title>
+<!--[[CSS]]-->
+</head>
+<body>
+
+<header>
+  <h1>公用文ジェネレーター</h1>
+  <span class="note">入力はすべて任意です。空欄の項目はWordに出力されません。</span>
+  <span class="spacer"></span>
+  <button class="hbtn" id="btnTmpl" type="button">ひな形の確認・差し替え</button>
+  <button class="hbtn" id="btnBackup" type="button">設定の書き出し・読み込み</button>
+</header>
+
+<div class="wrap">
+
+  <section class="panel">
+    <h2>入力</h2>
+    <div class="form-body">
+
+      <!-- 文書記号・番号 -->
+      <div class="field">
+        <span class="lab">文書記号・番号</span>
+        <div class="seg" role="group" aria-label="文書番号の種別">
+          <button type="button" data-no="num" aria-pressed="true">番号を入れる</button>
+          <button type="button" data-no="jimu" aria-pressed="false">事務連絡</button>
+          <button type="button" data-no="none" aria-pressed="false">入れない</button>
+        </div>
+        <div id="numArea" class="mt">
+          <div class="preset">
+            <select id="signSel" aria-label="登録した記号から選ぶ"><option value="">登録した記号から選ぶ</option></select>
+            <button class="mini" id="signAdd" type="button">記号を登録</button>
+            <button class="mini" id="signMng" type="button">管理</button>
+          </div>
+          <div class="row">
+            <input type="text" id="sign" placeholder="記号（例：商工労）">
+            <input type="text" id="num" placeholder="番号（例：123）" style="width:150px;" aria-label="番号">
+          </div>
+          <div class="hint">「第」「号」は自動で付きます → <b>商工労第123号</b></div>
+        </div>
+      </div>
+
+      <!-- 発信年月日 -->
+      <div class="field">
+        <span class="lab">発信年月日</span>
+        <div class="row">
+          <select id="era" style="width:88px;" aria-label="元号"><option>令和</option><option>平成</option></select>
+          <input type="number" id="yy" min="1" max="99" style="width:74px;" aria-label="年"><span>年</span>
+          <input type="number" id="mm" min="1" max="12" style="width:66px;" aria-label="月"><span>月</span>
+          <input type="number" id="dd" min="1" max="31" style="width:66px;" aria-label="日"><span>日</span>
+        </div>
+        <div class="row mt" style="flex-wrap:wrap;">
+          <button class="mini" id="qToday" type="button">今日</button>
+          <button class="mini" id="q41" type="button">4月1日（年度初め）</button>
+          <button class="mini" id="q331" type="button">3月31日（年度末）</button>
+          <button class="mini" id="qClear" type="button">空欄にする</button>
+        </div>
+        <div class="hint">1年は自動で「元年」と表示します。</div>
+      </div>
+
+      <!-- 受信者名 -->
+      <div class="field">
+        <span class="lab">受信者名（あて先）</span>
+        <textarea id="to" rows="3" placeholder="1行に1あて先&#10;例：&#10;島根県商工会連合会　会長&#10;島根県商工会議所連合会　会頭"></textarea>
+        <div class="row mt">
+          <select id="honor" style="width:auto;flex:1;" aria-label="敬称">
+            <option>様</option><option>御中</option><option>殿</option>
+            <option>各位</option><option value="">敬称なし</option>
+          </select>
+        </div>
+        <div class="hint">2件以上入れると、自動で <b>波括弧</b> でまとめて敬称を1つ付けます。</div>
+      </div>
+
+      <!-- 発信者名 -->
+      <div class="field">
+        <span class="lab">発信者名</span>
+        <div class="preset">
+          <select id="fromSel" aria-label="登録した発信者から選ぶ"><option value="">登録した発信者から選ぶ</option></select>
+          <button class="mini" id="fromAdd" type="button">発信者を登録</button>
+          <button class="mini" id="fromMng" type="button">管理</button>
+        </div>
+        <input type="text" id="from1" placeholder="1行目（例：島根県知事　丸山　達也）" aria-label="発信者名1行目">
+        <input type="text" id="from2" class="mt" placeholder="2行目（例：（商工労働部産業振興課））" aria-label="発信者名2行目">
+        <div class="mt seg" role="group" aria-label="公印の扱い">
+          <button type="button" data-seal="omit" aria-pressed="true">公印省略（何も出さない）</button>
+          <button type="button" data-seal="stamp" aria-pressed="false">公印を押す</button>
+        </div>
+        <div class="hint">「公印を押す」を選ぶと、氏名の最後の文字に半分かかる位置に <b>28mm角の赤枠「公印」</b> を出力します（起案時の添付用）。「公印省略」の場合は文書に何も書きません。</div>
+      </div>
+
+      <!-- 表題 -->
+      <div class="field">
+        <span class="lab">表題（件名）</span>
+        <input type="text" id="title" placeholder="令和○年度○○説明会の開催について（通知）" aria-label="表題">
+        <div class="mt seg" role="group" aria-label="表題の揃え方">
+          <button type="button" data-ta="center" aria-pressed="true">中央揃え</button>
+          <button type="button" data-ta="left" aria-pressed="false">左揃え（3文字空け）</button>
+        </div>
+      </div>
+
+      <!-- 記 -->
+      <div class="field">
+        <span class="lab">記書き</span>
+        <label class="check"><input type="checkbox" id="ki"> 本文の下に「記」を入れる</label>
+        <label class="check mt" id="ijoLab"><input type="checkbox" id="ijo" checked> 末尾に「以上」も入れる</label>
+      </div>
+
+      <!-- 空き行 -->
+      <div class="field">
+        <span class="lab">あとから書き込む空きの行数</span>
+        <div class="row">
+          <span style="font-size:13px;white-space:nowrap;">本文</span>
+          <input type="number" id="bodyRows" min="0" max="40" value="10" style="width:76px;" aria-label="本文の空き行数">
+          <span style="font-size:13px;">行</span>
+          <span style="font-size:13px;white-space:nowrap;margin-left:10px;">記書き</span>
+          <input type="number" id="kiRows" min="0" max="40" value="8" style="width:76px;" aria-label="記書きの空き行数">
+          <span style="font-size:13px;">行</span>
+        </div>
+        <div class="hint">Wordに空の行をこの数だけ用意します。あとから書き足せば自然に下へ伸びます。</div>
+      </div>
+
+      <!-- 連絡先 -->
+      <div class="field">
+        <span class="lab">連絡先（右下に枠で囲みます）</span>
+        <input type="text" id="cSec" placeholder="担当課・係名（例：産業振興課 企画係）" aria-label="担当課・係名">
+        <input type="text" id="cName" class="mt" placeholder="担当者名" aria-label="担当者名">
+        <div class="row mt">
+          <input type="text" id="cTel" placeholder="電話 0852-00-0000" aria-label="電話">
+          <input type="text" id="cMail" placeholder="メール" aria-label="メール">
+        </div>
+      </div>
+
+    </div>
+    <div class="actions">
+      <button class="btn btn-main" id="btnOut" type="button">Wordで出力</button>
+      <button class="btn btn-sub" id="btnClear" type="button">入力を消す</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="preview-head">
+      <h2>できあがりイメージ</h2>
+      <span class="cap">空欄の項目は何も出ません／赤い破線は目安表示です</span>
+    </div>
+    <div class="paper" id="paper">
+      <div class="p-nums">
+        <div id="vDocno"></div>
+        <div id="vDate"></div>
+      </div>
+      <div class="p-to" id="vTo"></div>
+      <div class="p-from" id="vFrom"></div>
+      <div class="p-title" id="vTitle"></div>
+      <div class="p-body" id="vBody">本文はここに入ります（出力後にWordで書き込む欄）</div>
+      <div class="p-ki" id="vKi" style="display:none;">記</div>
+      <div class="p-body" id="vKiBody" style="display:none;">記書きはここに入ります</div>
+      <div class="p-ijo" id="vIjo" style="display:none;">以上</div>
+      <div class="p-spacer"></div>
+      <div class="p-contact" id="vContact" style="display:none;"></div>
+    </div>
+    <div class="overflow-warn" id="warnOverflow" style="display:none;">
+      内容が1ページに収まりません。空き行数を減らすか、あて先の件数をご確認ください。（Wordでは2ページ目に続きます）
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ 登録の管理 ============ -->
+<dialog id="dlgMng">
+  <h3 id="mngTitle">登録の管理</h3>
+  <div class="dlg-body">
+    <p id="mngHelp"></p>
+    <div id="mngList"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-sub" type="button" data-close="dlgMng">閉じる</button>
+  </div>
+</dialog>
+
+<!-- ============ 設定の書き出し・読み込み ============ -->
+<dialog id="dlgBackup">
+  <h3>設定の書き出し・読み込み</h3>
+  <div class="dlg-body">
+    <p>登録した「文書記号」と「発信者セット」を、ファイルに書き出して保存できます。<br>
+    パソコンを入れ替えるときや、同僚に配るときにお使いください。</p>
+    <p style="color:#6B7280;font-size:12.5px;">読み込むと、いまの登録内容に<b>追加</b>されます（同じ内容は重複しません）。</p>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-sub" type="button" id="btnExport">設定を書き出す</button>
+    <button class="btn btn-sub" type="button" id="btnImport">設定を読み込む</button>
+    <button class="btn btn-main" type="button" data-close="dlgBackup">閉じる</button>
+  </div>
+</dialog>
+
+<!-- ============ ひな形 ============ -->
+<dialog id="dlgTmpl">
+  <h3>ひな形の確認・差し替え</h3>
+  <div class="dlg-body">
+    <div class="tmpl-state" id="tmplState"></div>
+    <p>様式が改定されたときは、新しいWordのひな形ファイル（.docx）をここで読み込ませてください。
+    用紙サイズ・余白・フォント・行送りは、読み込ませたひな形のものがそのまま使われます。</p>
+    <p style="color:#6B7280;font-size:12.5px;">差し替えたひな形はこのブラウザに保存され、次回以降もそのまま使われます。</p>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-sub" type="button" id="btnTmplReset">最初のひな形に戻す</button>
+    <button class="btn btn-sub" type="button" id="btnTmplLoad">ひな形を差し替える</button>
+    <button class="btn btn-main" type="button" data-close="dlgTmpl">閉じる</button>
+  </div>
+</dialog>
+
+<input type="file" id="fileImport" accept="application/json,.json" class="visually-hidden" tabindex="-1">
+<input type="file" id="fileTmpl" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden" tabindex="-1">
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!--[[VENDOR]]-->
+<!--[[TEMPLATE]]-->
+<!--[[DOCX]]-->
+<!--[[APP]]-->
+</body>
+</html>
