@@ -224,9 +224,14 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
             <option>各位</option><option value="">敬称なし</option>
           </select>
         </div>
+        <div class="mt seg" role="group" aria-label="あて先の均等割り付け">
+          <button type="button" data-kinto="auto" aria-pressed="true">連名のとき幅をそろえる</button>
+          <button type="button" data-kinto="off" aria-pressed="false">そろえない</button>
+        </div>
         <div class="hint">2件以上入れると、自動で <b>波括弧</b> でまとめて敬称を1つ付けます。<br>
         1件を2行に分けたいときは、<b>2行目の先頭に空白を1つ入れて</b>ください。前の行の続きとして、1文字下げて出力します。<br>
-        <span style="color:#8A94A6;">例：「キオクシアホールディングス株式会社」／改行して「　代表取締役」 → 代表取締役の右に敬称が付きます</span></div>
+        <span style="color:#8A94A6;">例：「キオクシアホールディングス株式会社」／改行して「　代表取締役」 → 代表取締役の右に敬称が付きます</span><br>
+        <b>均等割り付け</b>は連名2件以上のときだけ働きます（1件のときと続きの行には、もともとかかりません）。連名でもそろえたくないときは「そろえない」を選んでください。</div>
       </div>
 
       <!-- 発信者名 -->
@@ -582,7 +587,7 @@ function rowSample(r){ return (r.cont ? "　" : "") + r.text; }
 /* ---------- あて先の表 ---------- */
 /* 罫線なし3列。中央・右のセルを上下中央にすることで、
    あて先が偶数行でも敬称がまん中に来ます。 */
-function toTable(rows, honor, wName, cw){
+function toTable(rows, honor, wName, cw, kinto){
   /* 長いあて先は列の中で折り返す。その折り返しも数えて波括弧の高さを決める。 */
   var lines = 0;
   rows.forEach(function(r){ lines += Math.max(1, Math.ceil(rowWidth(r, cw) / wName)); });
@@ -597,9 +602,9 @@ function toTable(rows, honor, wName, cw){
   /* 続きの行（2行書きの2行目）は1文字下げるだけ。均等割り付けはかけない。
      ここで散らすと「代　表　取　締　役」のように間延びしてしまうため。 */
   var namesCell = rows.map(function(r){
-    return r.cont
-      ? para(lineFix + '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text))
-      : para(lineFix + '<w:jc w:val="distribute"/>', run(r.text));
+    if(r.cont) return para(lineFix + '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text));
+    return kinto ? para(lineFix + '<w:jc w:val="distribute"/>', run(r.text))
+                 : para(lineFix, run(r.text));
   }).join("");
 
   var tc = function(w, inner, mid){
@@ -720,14 +725,21 @@ function buildBody(D, cw){
     var limit = BODY_W - TW_CHAR - (D.honor ? TW_BRACE_COL + wHonor : 0);
     var wName = groupWidth(D.to.map(rowSample), limit);
 
+    /* 均等割り付けは連名のときだけ。画面で「そろえない」を選べば止められる。 */
+    var kinto = D.toKinto !== "off";
+
     if(D.honor){
-      out.push(toTable(D.to, D.honor, wName, cw));
+      out.push(toTable(D.to, D.honor, wName, cw, kinto));
     }else{
-      /* 敬称なし：波括弧も敬称の列も出さない。均等割り付けだけそろえる。 */
+      /* 敬称なし：波括弧も敬称の列も出さない。 */
       D.to.forEach(function(r){
-        out.push(r.cont
-          ? para('<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>', run(r.text))
-          : para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(r.text)));
+        if(r.cont){
+          out.push(para('<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>', run(r.text)));
+        }else if(kinto){
+          out.push(para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(r.text)));
+        }else{
+          out.push(para('<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text)));
+        }
       });
     }
     out.push(blank(""));
@@ -858,7 +870,7 @@ window.Docx = { build: build, buildBody: buildBody, planRows: planRows };
 var el = function(id){ return document.getElementById(id); };
 
 /* ---------- 状態 ---------- */
-var noMode = "num", sealMode = "omit", titleAlign = "center";
+var noMode = "num", sealMode = "omit", titleAlign = "center", toKinto = "auto";
 var store = { signs: [], froms: [] };
 /* あとからWordで書き込むための空き行数（未確定事項#1の決定：固定値）。
    ただし、あて先や表題が長くて1ページに収まらないときは自動で減らす。 */
@@ -1008,6 +1020,7 @@ function collect(){
     date: dateStr,
     to: rows,
     toEntries: entries,
+    toKinto: toKinto,
     honor: el("honor").value,
     from1: v("from1"),
     from2: v("from2"),
@@ -1057,9 +1070,10 @@ function render(){
       return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" + esc(t) + "</div>";
     }).join("");
   }else{
+    var wari = D.toKinto !== "off";
     var cells = D.to.map(function(r){
       return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" +
-        (r.cont ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
+        (r.cont || !wari ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
     }).join("");
     vTo.innerHTML = '<div class="to-group"><div class="to-names">' + cells + "</div>" +
       (D.honor ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>" : "") + "</div>";
@@ -1134,6 +1148,7 @@ function segGroup(attr, setter){
 segGroup("data-no",   function(v){ noMode = v; });
 segGroup("data-ta",   function(v){ titleAlign = v; });
 segGroup("data-seal", function(v){ sealMode = v; });
+segGroup("data-kinto", function(v){ toKinto = v; });
 
 document.querySelectorAll("input, select, textarea").forEach(function(n){
   n.addEventListener("input", render);

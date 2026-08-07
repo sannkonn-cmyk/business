@@ -7,7 +7,7 @@
 var el = function(id){ return document.getElementById(id); };
 
 /* ---------- 状態 ---------- */
-var noMode = "num", sealMode = "omit", titleAlign = "center";
+var noMode = "num", sealMode = "omit", titleAlign = "center", toKinto = "auto";
 var store = { signs: [], froms: [] };
 /* あとからWordで書き込むための空き行数（未確定事項#1の決定：固定値）。
    ただし、あて先や表題が長くて1ページに収まらないときは自動で減らす。 */
@@ -157,6 +157,7 @@ function collect(){
     date: dateStr,
     to: rows,
     toEntries: entries,
+    toKinto: toKinto,
     honor: el("honor").value,
     from1: v("from1"),
     from2: v("from2"),
@@ -206,9 +207,10 @@ function render(){
       return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" + esc(t) + "</div>";
     }).join("");
   }else{
+    var wari = D.toKinto !== "off";
     var cells = D.to.map(function(r){
       return '<div' + (r.cont ? ' class="to-cont"' : "") + ">" +
-        (r.cont ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
+        (r.cont || !wari ? esc(r.text) : '<span class="kinto">' + esc(r.text) + "</span>") + "</div>";
     }).join("");
     vTo.innerHTML = '<div class="to-group"><div class="to-names">' + cells + "</div>" +
       (D.honor ? braceSVG() + '<div class="to-honor">' + esc(D.honor) + "</div>" : "") + "</div>";
@@ -283,6 +285,7 @@ function segGroup(attr, setter){
 segGroup("data-no",   function(v){ noMode = v; });
 segGroup("data-ta",   function(v){ titleAlign = v; });
 segGroup("data-seal", function(v){ sealMode = v; });
+segGroup("data-kinto", function(v){ toKinto = v; });
 
 document.querySelectorAll("input, select, textarea").forEach(function(n){
   n.addEventListener("input", render);

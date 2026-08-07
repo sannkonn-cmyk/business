@@ -206,7 +206,7 @@ function rowSample(r){ return (r.cont ? "　" : "") + r.text; }
 /* ---------- あて先の表 ---------- */
 /* 罫線なし3列。中央・右のセルを上下中央にすることで、
    あて先が偶数行でも敬称がまん中に来ます。 */
-function toTable(rows, honor, wName, cw){
+function toTable(rows, honor, wName, cw, kinto){
   /* 長いあて先は列の中で折り返す。その折り返しも数えて波括弧の高さを決める。 */
   var lines = 0;
   rows.forEach(function(r){ lines += Math.max(1, Math.ceil(rowWidth(r, cw) / wName)); });
@@ -221,9 +221,9 @@ function toTable(rows, honor, wName, cw){
   /* 続きの行（2行書きの2行目）は1文字下げるだけ。均等割り付けはかけない。
      ここで散らすと「代　表　取　締　役」のように間延びしてしまうため。 */
   var namesCell = rows.map(function(r){
-    return r.cont
-      ? para(lineFix + '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text))
-      : para(lineFix + '<w:jc w:val="distribute"/>', run(r.text));
+    if(r.cont) return para(lineFix + '<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text));
+    return kinto ? para(lineFix + '<w:jc w:val="distribute"/>', run(r.text))
+                 : para(lineFix, run(r.text));
   }).join("");
 
   var tc = function(w, inner, mid){
@@ -344,14 +344,21 @@ function buildBody(D, cw){
     var limit = BODY_W - TW_CHAR - (D.honor ? TW_BRACE_COL + wHonor : 0);
     var wName = groupWidth(D.to.map(rowSample), limit);
 
+    /* 均等割り付けは連名のときだけ。画面で「そろえない」を選べば止められる。 */
+    var kinto = D.toKinto !== "off";
+
     if(D.honor){
-      out.push(toTable(D.to, D.honor, wName, cw));
+      out.push(toTable(D.to, D.honor, wName, cw, kinto));
     }else{
-      /* 敬称なし：波括弧も敬称の列も出さない。均等割り付けだけそろえる。 */
+      /* 敬称なし：波括弧も敬称の列も出さない。 */
       D.to.forEach(function(r){
-        out.push(r.cont
-          ? para('<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>', run(r.text))
-          : para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(r.text)));
+        if(r.cont){
+          out.push(para('<w:ind w:firstLineChars="200" w:firstLine="' + (TW_CHAR * 2) + '"/>', run(r.text)));
+        }else if(kinto){
+          out.push(para(kintoPPr(wName, BODY_W - TW_CHAR - wName), run(r.text)));
+        }else{
+          out.push(para('<w:ind w:firstLineChars="100" w:firstLine="' + TW_CHAR + '"/>', run(r.text)));
+        }
       });
     }
     out.push(blank(""));
