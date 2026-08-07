@@ -118,11 +118,18 @@ function collect(){
 
   var docno = "";
   if(noMode === "jimu") docno = "事務連絡";
+  else if(noMode === "gaigo"){ if(v("sign")) docno = v("sign") + "号外"; }
   else if(noMode === "num" && (v("sign") || v("num"))) docno = v("sign") + "第" + v("num") + "号";
 
+  /* 年・月・日のどれかが入っていれば日付の行を出す。
+     空欄のところは全角スペースにして、あとから書き込めるよう空けておく。
+     （例：日だけ空欄 → 「令和8年8月　日」） */
   var y = v("yy"), m = v("mm"), d = v("dd"), dateStr = "";
-  if(y && m && d){
-    dateStr = el("era").value + (Number(y) === 1 ? "元" : Number(y)) + "年" + Number(m) + "月" + Number(d) + "日";
+  if(y || m || d){
+    var yy = y ? (Number(y) === 1 ? "元" : String(Number(y))) : "　";
+    var mm = m ? String(Number(m)) : "　";
+    var dd = d ? String(Number(d)) : "　";
+    dateStr = el("era").value + yy + "年" + mm + "月" + dd + "日";
   }
 
   var contact = [];
@@ -162,7 +169,12 @@ function planRows(D){
 function render(){
   var D = collect();
 
-  el("numArea").style.display = (noMode === "num") ? "" : "none";
+  /* 「番号を入れる」と「号外」のときだけ記号欄を出す。号外に番号は要らない。 */
+  el("numArea").style.display = (noMode === "num" || noMode === "gaigo") ? "" : "none";
+  el("num").style.display = (noMode === "gaigo") ? "none" : "";
+  el("numHint").innerHTML = (noMode === "gaigo")
+    ? '「号外」が自動で付きます → <b>商工労号外</b>'
+    : '「第」「号」は自動で付きます → <b>商工労第123号</b>';
 
   /* 文書番号・日付：2行を同じ幅で均等割り付け */
   el("vDocno").innerHTML = D.docno ? '<span class="kinto">' + esc(D.docno) + "</span>" : "";

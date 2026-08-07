@@ -34,6 +34,7 @@
         <span class="lab">文書記号・番号</span>
         <div class="seg" role="group" aria-label="文書番号の種別">
           <button type="button" data-no="num" aria-pressed="true">番号を入れる</button>
+          <button type="button" data-no="gaigo" aria-pressed="false">号外</button>
           <button type="button" data-no="jimu" aria-pressed="false">事務連絡</button>
           <button type="button" data-no="none" aria-pressed="false">入れない</button>
         </div>
@@ -47,7 +48,7 @@
             <input type="text" id="sign" placeholder="記号（例：商工労）">
             <input type="text" id="num" placeholder="番号（例：123）" style="width:150px;" aria-label="番号">
           </div>
-          <div class="hint">「第」「号」は自動で付きます → <b>商工労第123号</b></div>
+          <div class="hint" id="numHint">「第」「号」は自動で付きます → <b>商工労第123号</b></div>
         </div>
       </div>
 
@@ -66,7 +67,8 @@
           <button class="mini" id="q331" type="button">3月31日（年度末）</button>
           <button class="mini" id="qClear" type="button">空欄にする</button>
         </div>
-        <div class="hint">1年は自動で「元年」と表示します。</div>
+        <div class="hint">1年は自動で「元年」と表示します。<br>
+        空欄にした年・月・日は、あとから書き込めるよう<b>空白のまま</b>出力します（例：令和8年8月　日）。</div>
       </div>
 
       <!-- 受信者名 -->

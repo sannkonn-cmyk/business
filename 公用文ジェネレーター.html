@@ -182,6 +182,7 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
         <span class="lab">文書記号・番号</span>
         <div class="seg" role="group" aria-label="文書番号の種別">
           <button type="button" data-no="num" aria-pressed="true">番号を入れる</button>
+          <button type="button" data-no="gaigo" aria-pressed="false">号外</button>
           <button type="button" data-no="jimu" aria-pressed="false">事務連絡</button>
           <button type="button" data-no="none" aria-pressed="false">入れない</button>
         </div>
@@ -195,7 +196,7 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
             <input type="text" id="sign" placeholder="記号（例：商工労）">
             <input type="text" id="num" placeholder="番号（例：123）" style="width:150px;" aria-label="番号">
           </div>
-          <div class="hint">「第」「号」は自動で付きます → <b>商工労第123号</b></div>
+          <div class="hint" id="numHint">「第」「号」は自動で付きます → <b>商工労第123号</b></div>
         </div>
       </div>
 
@@ -214,7 +215,8 @@ dialog h3{margin:0;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-
           <button class="mini" id="q331" type="button">3月31日（年度末）</button>
           <button class="mini" id="qClear" type="button">空欄にする</button>
         </div>
-        <div class="hint">1年は自動で「元年」と表示します。</div>
+        <div class="hint">1年は自動で「元年」と表示します。<br>
+        空欄にした年・月・日は、あとから書き込めるよう<b>空白のまま</b>出力します（例：令和8年8月　日）。</div>
       </div>
 
       <!-- 受信者名 -->
@@ -950,11 +952,18 @@ function collect(){
 
   var docno = "";
   if(noMode === "jimu") docno = "事務連絡";
+  else if(noMode === "gaigo"){ if(v("sign")) docno = v("sign") + "号外"; }
   else if(noMode === "num" && (v("sign") || v("num"))) docno = v("sign") + "第" + v("num") + "号";
 
+  /* 年・月・日のどれかが入っていれば日付の行を出す。
+     空欄のところは全角スペースにして、あとから書き込めるよう空けておく。
+     （例：日だけ空欄 → 「令和8年8月　日」） */
   var y = v("yy"), m = v("mm"), d = v("dd"), dateStr = "";
-  if(y && m && d){
-    dateStr = el("era").value + (Number(y) === 1 ? "元" : Number(y)) + "年" + Number(m) + "月" + Number(d) + "日";
+  if(y || m || d){
+    var yy = y ? (Number(y) === 1 ? "元" : String(Number(y))) : "　";
+    var mm = m ? String(Number(m)) : "　";
+    var dd = d ? String(Number(d)) : "　";
+    dateStr = el("era").value + yy + "年" + mm + "月" + dd + "日";
   }
 
   var contact = [];
@@ -994,7 +1003,12 @@ function planRows(D){
 function render(){
   var D = collect();
 
-  el("numArea").style.display = (noMode === "num") ? "" : "none";
+  /* 「番号を入れる」と「号外」のときだけ記号欄を出す。号外に番号は要らない。 */
+  el("numArea").style.display = (noMode === "num" || noMode === "gaigo") ? "" : "none";
+  el("num").style.display = (noMode === "gaigo") ? "none" : "";
+  el("numHint").innerHTML = (noMode === "gaigo")
+    ? '「号外」が自動で付きます → <b>商工労号外</b>'
+    : '「第」「号」は自動で付きます → <b>商工労第123号</b>';
 
   /* 文書番号・日付：2行を同じ幅で均等割り付け */
   el("vDocno").innerHTML = D.docno ? '<span class="kinto">' + esc(D.docno) + "</span>" : "";
