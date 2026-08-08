@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>和暦変換</title>
+<style>
+/* ===========================================================
+   和暦変換 — スタイル
+   公用文ジェネレーターの配色（墨・藍・朱）をそろえています。
+   =========================================================== */
+
+:root{
+  --sumi:#1A1A1F; --ai:#24406E; --ai-light:#5A78AB;
+  --usu:#EDF0F5; --line:#C9D2E0; --shu:#B03A2E; --paper:#FFF;
+  --gothic:"Yu Gothic UI","Yu Gothic","Hiragino Sans","Noto Sans JP","Meiryo",sans-serif;
+  --mincho:"Yu Mincho","YuMincho","Hiragino Mincho ProN","Noto Serif JP","MS Mincho",serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--usu);color:var(--sumi);font-family:var(--gothic);font-size:15px;line-height:1.7;}
+
+header{background:var(--ai);color:#fff;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;}
+header h1{font-size:17px;margin:0;letter-spacing:.14em;font-weight:600;}
+header .note{font-size:12px;color:#B9C7E0;}
+
+.wrap{max-width:680px;margin:0 auto;padding:24px;}
+@media (max-width:600px){.wrap{padding:16px;}}
+
+.panel{background:#fff;border:1px solid var(--line);border-radius:4px;margin-bottom:18px;}
+.panel>h2{margin:0;font-size:13px;letter-spacing:.12em;padding:11px 16px;border-bottom:1px solid var(--line);
+  background:#F7F9FC;color:var(--ai);font-weight:600;}
+.panel-body{padding:16px;}
+
+/* ---------- 入力 ---------- */
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+select,input[type=number]{padding:9px 10px;border:1px solid var(--line);border-radius:3px;
+  font-family:var(--gothic);font-size:16px;color:var(--sumi);background:#fff;}
+select{width:104px;}
+input[type=number]{width:110px;text-align:right;}
+select:focus,input:focus,button:focus-visible{outline:2px solid var(--ai-light);outline-offset:1px;}
+select:focus,input:focus{border-color:var(--ai);}
+.unit{font-size:16px;}
+.mini{font-size:12px;padding:6px 11px;border:1px solid var(--line);background:#fff;border-radius:3px;
+  cursor:pointer;font-family:var(--gothic);color:var(--ai);white-space:nowrap;}
+.mini:hover{background:#EAEFF7;}
+.hint{font-size:11.5px;color:#6B7280;margin-top:10px;line-height:1.6;}
+
+/* ---------- 結果 ---------- */
+.seireki{text-align:center;padding:20px 16px 16px;border-bottom:1px solid var(--line);}
+.seireki .wareki{font-family:var(--mincho);font-size:17px;color:#6B7280;letter-spacing:.08em;}
+.seireki .big{font-family:var(--mincho);font-size:40px;line-height:1.3;letter-spacing:.06em;color:var(--ai);}
+.seireki .big .num{font-size:56px;font-weight:600;}
+@media (max-width:600px){
+  .seireki .big{font-size:32px;}
+  .seireki .big .num{font-size:44px;}
+}
+
+table{width:100%;border-collapse:collapse;font-family:var(--mincho);}
+th,td{padding:11px 16px;border-bottom:1px solid var(--line);text-align:left;}
+tr:last-child td{border-bottom:none;}
+thead th{font-family:var(--gothic);font-size:11.5px;font-weight:600;color:#6B7280;letter-spacing:.08em;
+  background:#F7F9FC;padding:7px 16px;border-bottom:1px solid var(--line);}
+td.era{width:6.5em;letter-spacing:.18em;}
+td.year{font-size:19px;}
+/* 幅1%＋折り返し禁止で、中身のぶんだけの幅に縮みます */
+td.mark{width:1%;white-space:nowrap;text-align:right;font-family:var(--gothic);font-size:11px;color:#6B7280;}
+tr.self{background:#F2F6FC;}
+tr.self td.era,tr.self td.year{color:var(--ai);font-weight:600;}
+tr.self td.mark{color:var(--ai);}
+
+/* ---------- 注記 ---------- */
+.kaigen{background:#FCF3F2;border:1px solid #E6C4C0;border-radius:3px;color:#7A2E25;
+  font-size:12.5px;line-height:1.8;padding:11px 14px;margin:0 0 18px;}
+.kaigen b{color:#8F3227;}
+
+.extra{font-size:13px;color:#374151;padding:13px 16px;border-top:1px solid var(--line);background:#F7F9FC;}
+.extra div+div{margin-top:5px;}
+.extra .k{color:#6B7280;font-size:11.5px;letter-spacing:.08em;margin-right:.6em;}
+
+.empty{padding:26px 16px;text-align:center;color:#9AA3B0;font-size:13px;}
+
+footer{max-width:680px;margin:0 auto;padding:0 24px 28px;font-size:11.5px;color:#6B7280;line-height:1.8;}
+@media (max-width:600px){footer{padding:0 16px 24px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>和暦変換</h1>
+  <span class="note">和暦の年から、西暦とほかの元号での言いかたを出します。</span>
+</header>
+
+<div class="wrap">
+
+  <section class="panel">
+    <h2>年を入れる</h2>
+    <div class="panel-body">
+      <div class="row">
+        <select id="era" aria-label="元号"></select>
+        <input type="number" id="yy" min="1" max="999" step="1" placeholder="2" aria-label="年" inputmode="numeric">
+        <span class="unit">年</span>
+        <button class="mini" id="btnNow" type="button">今年</button>
+        <button class="mini" id="btnClear" type="button">消す</button>
+      </div>
+      <div class="hint">数字を入れると、下にすぐ出ます。ボタンを押す必要はありません。</div>
+    </div>
+  </section>
+
+  <div id="kaigen" class="kaigen" role="note" style="display:none;"></div>
+
+  <section class="panel" id="result" aria-live="polite">
+    <div class="empty" id="empty">年を入れてください。</div>
+
+    <div id="output" style="display:none;">
+      <div class="seireki">
+        <div class="wareki" id="oWareki"></div>
+        <div class="big">西暦 <span class="num" id="oSeireki"></span> 年</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th colspan="3">同じ年を、それぞれの元号でいうと</th></tr>
+        </thead>
+        <tbody id="oTable"></tbody>
+      </table>
+
+      <div class="extra">
+        <div><span class="k">干支</span><span id="oEto"></span></div>
+        <div id="oAgeRow"><span class="k">年齢</span><span id="oAge"></span></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  ※「平成32年」のように、実際には使われなかった年の言いかたも出します。改元をまたぐ計算のために使ってください。<br>
+  ※このページは、入れた内容をどこにも送りません。インターネットにつながっていなくても動きます。
+</footer>
+
+<script>
+/* ===========================================================
+   和暦変換 — 画面の動き
+
+   考えかたはとても単純で、元号ごとに「西暦との差」を1つ持たせ、
+       西暦 = 差 + 和暦の年
+   で行き来しているだけです。（例：令和は差が2018なので、令和2年＝2020年）
+
+   古い庁内パソコンでも動くよう、ES5（var と function だけ）で書いています。
+   =========================================================== */
+(function(){
+"use strict";
+
+/* --- 元号の表（ここだけが正）--------------------------------
+   offset : 西暦との差。西暦 = offset + 和暦の年
+   last   : その元号が実際に使われた最後の年（表示には使っていませんが、
+            将来「実在の年かどうか」を出したくなったときのために残しています）
+   ------------------------------------------------------------ */
+var ERAS = [
+  { name:"明治", offset:1867, last:45   },
+  { name:"大正", offset:1911, last:15   },
+  { name:"昭和", offset:1925, last:64   },
+  { name:"平成", offset:1988, last:31   },
+  { name:"令和", offset:2018, last:null }
+];
+
+/* 改元があった年の注記。西暦の年で引きます。 */
+var KAIGEN = {
+  1868:"<b>1868年は明治元年です。</b>改元そのものは10月23日ですが、その年の1月1日までさかのぼって明治元年とされました。",
+  1912:"<b>1912年は、明治と大正の変わり目です。</b>7月30日に大正へ改元しました。それまでは明治45年です。",
+  1926:"<b>1926年は、大正と昭和の変わり目です。</b>12月25日に昭和へ改元しました。それまでは大正15年です。",
+  1989:"<b>1989年は、昭和と平成の変わり目です。</b>1月8日に平成へ改元しました。1月7日までは昭和64年です。",
+  2019:"<b>2019年は、平成と令和の変わり目です。</b>5月1日に令和へ改元しました。4月30日までは平成31年です。"
+};
+
+/* 干支（十干＋十二支）。西暦4年が甲子なので、(西暦-4) を10と12で割った余りで決まります。 */
+var KAN      = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+var KAN_YOMI = ["きのえ","きのと","ひのえ","ひのと","つちのえ","つちのと","かのえ","かのと","みずのえ","みずのと"];
+var SHI      = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+var SHI_YOMI = ["ね","うし","とら","う","たつ","み","うま","ひつじ","さる","とり","いぬ","い"];
+
+var el = function(id){ return document.getElementById(id); };
+
+/* 1年は「元年」と呼ぶので、そちらを主にして数字を添えます。 */
+function yearLabel(n){ return n === 1 ? "元年（1年）" : n + "年"; }
+
+function eto(y){
+  var i = ((y - 4) % 10 + 10) % 10;
+  var j = ((y - 4) % 12 + 12) % 12;
+  return KAN[i] + SHI[j] + "（" + KAN_YOMI[i] + " " + SHI_YOMI[j] + "）";
+}
+
+/* --- 画面をつくる ------------------------------------------ */
+
+/* 元号の選択肢は表から作ります（新しい順に並べます） */
+(function fillEraSelect(){
+  var sel = el("era"), i, op;
+  for(i = ERAS.length - 1; i >= 0; i--){
+    op = document.createElement("option");
+    op.value = ERAS[i].name;
+    op.textContent = ERAS[i].name;
+    sel.appendChild(op);
+  }
+})();
+
+function findEra(name){
+  var i;
+  for(i = 0; i < ERAS.length; i++){ if(ERAS[i].name === name) return ERAS[i]; }
+  return null;
+}
+
+/* --- 計算して表示する -------------------------------------- */
+function update(){
+  var era = findEra(el("era").value);
+  var n   = parseInt(el("yy").value, 10);
+
+  // 空欄や 0 以下のときは、赤字で叱らずに静かに待ちます。
+  if(!era || !n || n < 1){
+    el("output").style.display = "none";
+    el("empty").style.display  = "";
+    el("kaigen").style.display = "none";
+    return;
+  }
+
+  var seireki = era.offset + n;
+
+  el("oWareki").textContent  = era.name + yearLabel(n) + " は";
+  el("oSeireki").textContent = seireki;
+
+  // それぞれの元号での言いかた（新しい順）。
+  // その元号が始まる前になってしまう年（0年以下）は出しません。
+  var tb = el("oTable"), i, e, y, tr, rows = 0;
+  tb.innerHTML = "";
+  for(i = ERAS.length - 1; i >= 0; i--){
+    e = ERAS[i];
+    y = seireki - e.offset;
+    if(y < 1) continue;
+    tr = document.createElement("tr");
+    if(e.name === era.name) tr.className = "self";
+    tr.innerHTML = '<td class="era">' + e.name + '</td>' +
+                   '<td class="year">' + yearLabel(y) + '</td>' +
+                   '<td class="mark">' + (e.name === era.name ? "入力した年" : "") + '</td>';
+    tb.appendChild(tr);
+    rows++;
+  }
+
+  // 改元の年なら注記を出します。
+  var k = KAIGEN[seireki];
+  el("kaigen").innerHTML     = k || "";
+  el("kaigen").style.display = k ? "" : "none";
+
+  // 干支
+  el("oEto").textContent = eto(seireki);
+
+  // その年に生まれた人の、今年の満年齢
+  var thisYear = new Date().getFullYear();
+  var age = thisYear - seireki;
+  if(age > 0){
+    el("oAge").textContent = "この年に生まれた人は、今年の誕生日で " + age + " 歳になります（誕生日の前は " + (age - 1) + " 歳）。";
+    el("oAgeRow").style.display = "";
+  }else if(age === 0){
+    el("oAge").textContent = "この年に生まれた人は、今年で 0 歳です。";
+    el("oAgeRow").style.display = "";
+  }else{
+    el("oAgeRow").style.display = "none";  // これから来る年
+  }
+
+  el("empty").style.display  = "none";
+  el("output").style.display = "";
+}
+
+/* --- 操作 --------------------------------------------------- */
+el("era").addEventListener("change", update);
+el("yy").addEventListener("input", update);
+
+el("btnNow").addEventListener("click", function(){
+  var newest = ERAS[ERAS.length - 1];
+  el("era").value = newest.name;
+  el("yy").value  = new Date().getFullYear() - newest.offset;
+  update();
+});
+
+el("btnClear").addEventListener("click", function(){
+  el("yy").value = "";
+  update();
+  el("yy").focus();
+});
+
+update();
+})();
+</script>
+
+</body>
+</html>
