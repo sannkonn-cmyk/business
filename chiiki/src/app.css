@@ -49,6 +49,10 @@ select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:3p
 select:focus,button:focus-visible{outline:2px solid var(--ai-light);outline-offset:1px;}
 select:focus{border-color:var(--ai);}
 select:disabled{background:#F2F4F7;color:#9AA3B0;}
+.filter{width:100%;padding:7px 10px;margin-bottom:6px;border:1px solid var(--line);border-radius:3px;
+  font-family:var(--gothic);font-size:13px;color:var(--sumi);background:#fff;}
+.filter:focus{border-color:var(--ai);outline:2px solid var(--ai-light);outline-offset:1px;}
+.filter::placeholder{color:#9AA3B0;}
 .mt{margin-top:10px;}
 .check{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;cursor:pointer;line-height:1.65;}
 .check input{width:16px;height:16px;accent-color:var(--ai);cursor:pointer;flex:none;margin-top:3px;}

@@ -15,7 +15,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var 埋め込み表示 = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
 
-  var 状態 = { pref: "", cityCode: "", oazaId: "", res: null, txt: "" };
+  var 状態 = { pref: "", cityCode: "", oazaId: "", res: null, txt: "", 大字全件: [] };
 
   /* ---------- 小物 ---------- */
   function トースト(msg, warn) {
@@ -44,12 +44,15 @@
   }
 
   /* ---------- 起動時のしつらえ ---------- */
+  var データ未投入 = false;
+
   function 初期化() {
     var meta = DATA.meta;
+    データ未投入 = !DATA.d1.市町村.length;
 
-    $("badgeDate").textContent = "データ基準日 " + meta.基準日;
-    var 済 = meta.dataStatus === "verified";
-    $("badgeStatus").textContent = 済 ? "照合済み" : "暫定（要照合）";
+    $("badgeDate").textContent = "データ基準日 " + (meta.基準日 || "—");
+    var 済 = meta.dataStatus === "verified" && !データ未投入;
+    $("badgeStatus").textContent = データ未投入 ? "データ未投入" : 済 ? "照合済み" : "暫定（要照合）";
     $("badgeStatus").className = "badge " + (済 ? "ok" : "warn");
 
     if (!済) {
@@ -64,11 +67,15 @@
 
     $("credit").textContent = meta.ライセンス表記 + "　／　" + meta.免責;
 
-    /* 都道府県：実データを先に、動作確認用サンプルを後ろに */
     var 県 = [];
     DATA.d1.市町村.forEach(function (m) { if (県.indexOf(m.都道府県名) < 0) 県.push(m.都道府県名); });
-    県.sort(function (a, b) { return (a.charAt(0) === "（" ? 1 : 0) - (b.charAt(0) === "（" ? 1 : 0); });
-    選択肢($("selPref"), 県.map(function (p) { return { value: p, label: p }; }), "選んでください");
+    県.sort();
+    選択肢($("selPref"), 県.map(function (p) { return { value: p, label: p }; }), データ未投入 ? "データがありません" : "選んでください");
+    if (データ未投入) {
+      ["selPref", "selCity", "selOaza"].forEach(function (id) { $(id).disabled = true; });
+      ["ex1", "ex2", "ex3"].forEach(function (id) { $(id).disabled = true; });
+      $("btnClear").disabled = true;
+    }
 
     if (埋め込み表示) {
       $("btnSave").disabled = true;
@@ -88,15 +95,38 @@
   }
 
   function 大字を並べる() {
-    var list = DATA.d2.大字
+    状態.大字全件 = DATA.d2.大字
       .filter(function (o) { return o.市町村コード === 状態.cityCode; })
       .map(function (o) { return { value: o.id, label: o.大字名 }; });
-    選択肢($("selOaza"), list, "選んでください");
-    return list.length;
+    $("oazaFilter").value = "";
+    /* 全国では1市町村に3,000件を超える大字があります。数が多いときだけ絞り込み欄を出します。 */
+    $("oazaFilter").hidden = 状態.大字全件.length <= 30;
+    大字を絞り込む();
+    return 状態.大字全件.length;
+  }
+
+  function 大字を絞り込む() {
+    var q = $("oazaFilter").value.trim();
+    var list = q ? 状態.大字全件.filter(function (o) { return o.label.indexOf(q) >= 0; }) : 状態.大字全件;
+    var 先頭 = q && !list.length ? "見つかりません" :
+               q ? "選んでください（" + list.length + " / " + 状態.大字全件.length + " 件）" :
+               "選んでください（" + 状態.大字全件.length + " 件）";
+    選択肢($("selOaza"), list, 先頭);
+    /* 絞り込みで選択中の大字が消えたら、選択も外します */
+    if (状態.oazaId && !list.some(function (o) { return o.value === 状態.oazaId; })) 状態.oazaId = "";
+    else $("selOaza").value = 状態.oazaId || "";
   }
 
   /* ---------- 描画 ---------- */
   function 描画() {
+    if (データ未投入) {
+      $("verdict").setAttribute("data-state", "none");
+      $("verdictMark").textContent = "—";
+      $("verdictText").textContent = "データが投入されていないため、判定できません。";
+      $("report").textContent = DATA.meta.暫定データ警告.本文;
+      ["btnCopy", "btnPrint", "btnSave", "btnKeep"].forEach(function (id) { $(id).disabled = true; });
+      return;
+    }
     var 例外 = 例外あり();
     $("addrField").classList.toggle("dimmed", 例外);
     ["selPref", "selCity", "selOaza"].forEach(function (id) { $(id).tabIndex = 例外 ? -1 : 0; });
@@ -305,6 +335,8 @@
     h("収録している範囲");
     p(meta.収録範囲.注記);
     p("収録件数：市町村 " + DATA.d1.市町村.length + " 件／大字・町丁目 " + DATA.d2.大字.length + " 件");
+    var 欠け = DATA.d1.市町村.filter(function (m) { return (m.該当法令 || []).some(function (l) { return ["過疎","山村","離島","半島"].indexOf(l) >= 0 && (m.照合済み法令 || []).indexOf(l) < 0; }); });
+    if (欠け.length) p("区域一覧が未収録の法令がある市町村が " + 欠け.length + " 件あります。これらの市町村では、条件不利区域(b) に当たらないことまでは確かめられますが、(c) と言い切れないため「要確認」になります。");
     h("判定のしくみ");
     p("①住所から市町村を特定 → ②市町村マスタで区分を見る → ③一部条件不利地域のときだけ大字の区域(b/c)を見る、という順に判定します。転入地が全部条件不利地域(a)に固定されているため、確認表のうち「3大都市圏外／全部条件不利地域」の1列だけを参照しており、判定記号は ○・△・× の3種のみです。");
     h("出典");
@@ -345,13 +377,18 @@
       状態.oazaId = this.value;
       描画();
     });
+    $("oazaFilter").addEventListener("input", function () {
+      大字を絞り込む();
+      描画();
+    });
     ["ex1", "ex2", "ex3"].forEach(function (id) { $(id).addEventListener("change", 描画); });
 
     $("btnClear").addEventListener("click", function () {
-      状態 = { pref: "", cityCode: "", oazaId: "", res: null, txt: "" };
+      状態 = { pref: "", cityCode: "", oazaId: "", res: null, txt: "", 大字全件: [] };
       $("selPref").value = "";
       選択肢($("selCity"), [], "選んでください"); $("selCity").disabled = true;
       選択肢($("selOaza"), [], "選んでください"); $("selOaza").disabled = true;
+      $("oazaFilter").value = ""; $("oazaFilter").hidden = true;
       ["ex1", "ex2", "ex3"].forEach(function (id) { $(id).checked = false; });
       描画();
       トースト("入力をクリアしました。");

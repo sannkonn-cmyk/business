@@ -51,6 +51,17 @@ const データ = {
   d3: JSON.parse(fs.readFileSync(d("d3_principles.json"), "utf8"))
 };
 
+/* 中身のないツールを配ってしまわないための歯止め。
+   データを手で書かない設計なので、空のまま配布物ができるのは事故です。 */
+if (データ.d1.市町村.length === 0) {
+  console.error("  データが投入されていないため、配布物は作りませんでした。");
+  console.error("  chiiki/data/source/README.md に従って原典を置き、");
+  console.error("  node chiiki/tools/ingest/build-data.js を流してから、もう一度ビルドしてください。");
+  console.error("  （画面だけ確認したい場合は --review を付けると chiiki/dist/artifact.html だけ作ります）");
+  if (process.argv.indexOf("--review") < 0) process.exit(1);
+  console.error("");
+}
+
 const wrap = (label, code) => `<script>\n/* ==== ${label} ==== */\n${code}\n</script>`;
 
 const out = html
@@ -60,9 +71,11 @@ const out = html
   .replace("<!--[[REPORT]]-->", wrap("根拠テキスト", report))
   .replace("<!--[[APP]]-->", wrap("画面の動き", app));
 
-const 配布物 = path.join(repo, "地域要件確認ツール.html");
-fs.writeFileSync(配布物, out, "utf8");
-console.log(`  出力: 地域要件確認ツール.html (${(Buffer.byteLength(out) / 1024).toFixed(0)} KB)`);
+if (データ.d1.市町村.length > 0) {
+  const 配布物 = path.join(repo, "地域要件確認ツール.html");
+  fs.writeFileSync(配布物, out, "utf8");
+  console.log(`  出力: 地域要件確認ツール.html (${(Buffer.byteLength(out) / 1024).toFixed(0)} KB)`);
+}
 
 /* --- レビュー用（Artifact は <body> の中身だけを受け取る） --- */
 const bodyOnly = out.slice(out.indexOf("<body>") + 6, out.lastIndexOf("</body>"));
