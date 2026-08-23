@@ -67,9 +67,15 @@
 
     $("credit").textContent = meta.ライセンス表記 + "　／　" + meta.免責;
 
-    var 県 = [];
-    DATA.d1.市町村.forEach(function (m) { if (県.indexOf(m.都道府県名) < 0) 県.push(m.都道府県名); });
-    県.sort();
+    /* 都道府県は全国地方公共団体コード順（北海道→沖縄県）に並べます。
+       名前順にすると「愛知県・青森県・秋田県…」となって探しにくいためです。 */
+    var 県コード = {};
+    DATA.d1.市町村.forEach(function (m) {
+      var c = String(m.市町村コード || m.コード || "").slice(0, 2);
+      if (県コード[m.都道府県名] === undefined || c < 県コード[m.都道府県名]) 県コード[m.都道府県名] = c;
+    });
+    var 県 = Object.keys(県コード);
+    県.sort(function (a, b) { return 県コード[a] < 県コード[b] ? -1 : 県コード[a] > 県コード[b] ? 1 : 0; });
     選択肢($("selPref"), 県.map(function (p) { return { value: p, label: p }; }), データ未投入 ? "データがありません" : "選んでください");
     if (データ未投入) {
       ["selPref", "selCity", "selOaza"].forEach(function (id) { $(id).disabled = true; });
