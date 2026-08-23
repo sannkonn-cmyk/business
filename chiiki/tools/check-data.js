@@ -10,8 +10,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const root = path.resolve(__dirname, "..");
-const Judge = require(path.join(root, "src", "judge.js"));
+const root = process.env.CHIIKI_DATA_ROOT ? path.resolve(process.env.CHIIKI_DATA_ROOT) : path.resolve(__dirname, "..");
+const Judge = require(path.resolve(__dirname, "..", "src", "judge.js"));
 const j = (f) => JSON.parse(fs.readFileSync(path.join(root, "data", f), "utf8"));
 
 const meta = j("meta.json"), d1 = j("d1_municipalities.json"), d2 = j("d2_oaza.json"), d3 = j("d3_principles.json");
