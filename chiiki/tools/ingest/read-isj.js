@@ -8,6 +8,7 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 
 /* Shift_JIS か UTF-8 かを中身から見分けます。
    UTF-8 として復号したときに置換文字が出れば Shift_JIS とみなします。 */
@@ -106,13 +107,75 @@ function read(ファイル) {
   return { rows, 位置, 欠けている列 };
 }
 
-module.exports = { read, 復号, CSVを分ける };
+/* ---------- 配布 zip をそのまま読む ----------
+   国土交通省の配布物は「都道府県ごとの zip」を束ねた入れ子の zip です。
+   展開の手間をなくすため、リポジトリに既にある JSZip をそのまま使います
+   （公用文ジェネレーターで同梱しているもの。MIT）。 */
+function JSZipを読む() {
+  const 場所 = path.resolve(__dirname, "..", "..", "..", "vendor", "jszip.min.js");
+  if (!fs.existsSync(場所)) throw new Error("vendor/jszip.min.js が見つかりません: " + 場所);
+  const m = { exports: {} };
+  new Function("module", "exports", "self", fs.readFileSync(場所, "utf8"))(m, m.exports, {});
+  return m.exports;
+}
+
+/**
+ * 位置参照情報の配布 zip（入れ子）から、全都道府県ぶんの行を読みます。
+ * @param {string} ファイル
+ * @param {string} [県コード] "32" のように指定すると、その県だけ読みます
+ */
+async function readZip(ファイル, 県コード) {
+  const JSZip = JSZipを読む();
+  const 外 = await JSZip.loadAsync(fs.readFileSync(ファイル));
+
+  /* 直下に CSV があればそれを、なければ内側の zip をたどります */
+  const 直下CSV = Object.keys(外.files).filter((n) => /\.csv$/i.test(n));
+  const 内zip = Object.keys(外.files).filter((n) => /\.zip$/i.test(n))
+    .filter((n) => !県コード || new RegExp("(^|/)" + 県コード + "000-").test(n));
+
+  const rows = [];
+  const 欠けている列 = new Set();
+  const 取り込む = (text) => {
+    const 行 = CSVを分ける(text);
+    if (!行.length) return;
+    const 位置 = 見出しを当てる(行[0]);
+    ["都道府県名", "市町村コード", "市町村名", "大字名", "緯度", "経度"]
+      .forEach((k) => { if (位置[k] === undefined) 欠けている列.add(k); });
+    for (let i = 1; i < 行.length; i++) {
+      const r = 行[i];
+      const 取 = (k) => (位置[k] === undefined ? "" : (r[位置[k]] || "").trim());
+      const 市町村コード = 取("市町村コード");
+      if (!市町村コード) continue;
+      const 緯度 = parseFloat(取("緯度")), 経度 = parseFloat(取("経度"));
+      rows.push({
+        都道府県名: 取("都道府県名"),
+        市町村コード: 市町村コード,
+        市町村名: 取("市町村名"),
+        大字コード: 取("大字コード"),
+        大字名: 取("大字名"),
+        緯度: isNaN(緯度) ? null : 緯度,
+        経度: isNaN(経度) ? null : 経度
+      });
+    }
+  };
+
+  for (const n of 直下CSV) 取り込む(復号(await 外.files[n].async("nodebuffer")));
+  for (const n of 内zip) {
+    const 中 = await JSZip.loadAsync(await 外.files[n].async("nodebuffer"));
+    for (const c of Object.keys(中.files).filter((x) => /\.csv$/i.test(x))) {
+      取り込む(復号(await 中.files[c].async("nodebuffer")));
+    }
+  }
+  return { rows, 欠けている列: [...欠けている列] };
+}
+
+module.exports = { read, readZip, 復号, CSVを分ける, 見出しを当てる, JSZipを読む };
 
 /* 単体でも動かせます:  node chiiki/tools/ingest/read-isj.js <CSV> */
 if (require.main === module) {
   const f = process.argv[2];
-  if (!f) { console.error("使い方: node chiiki/tools/ingest/read-isj.js <位置参照情報のCSV>"); process.exit(1); }
-  const { rows, 欠けている列 } = read(f);
+  if (!f) { console.error("使い方: node chiiki/tools/ingest/read-isj.js <位置参照情報のCSVまたはzip> [県コード]"); process.exit(1); }
+  (/\.zip$/i.test(f) ? readZip(f, process.argv[3]) : Promise.resolve(read(f))).then(({ rows, 欠けている列 }) => {
   if (欠けている列.length) console.error("  読めなかった列: " + 欠けている列.join("・"));
   const 市 = new Map();
   rows.forEach((r) => 市.set(r.市町村コード, (市.get(r.市町村コード) || 0) + 1));
@@ -121,4 +184,5 @@ if (require.main === module) {
     console.log(`    ${c} ${(rows.find((r) => r.市町村コード === c) || {}).市町村名} : ${n} 件`);
   });
   if (市.size > 10) console.log(`    …ほか ${市.size - 10} 市町村`);
+  }).catch((e) => { console.error("  " + e.message); process.exit(1); });
 }
