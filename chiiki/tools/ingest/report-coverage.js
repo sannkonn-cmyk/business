@@ -60,16 +60,22 @@ console.log("  ■ 区域判定が必要な市町村");
 console.log("");
 console.log("    " + 幅("市町村", 16) + 幅("大字", 8) + 幅("(b)", 8) + 幅("(c)", 8) + 幅("要確認", 8) + "確定率");
 const 対象 = d1.市町村.filter(区域必要);
+const 全部出す = process.argv.indexOf("--all") >= 0;
 let 全大字 = 0, 全要確認 = 0;
+let 表示数 = 0;
 対象.forEach((m) => {
   const a = 大字別[m.コード] || [];
   const c = (f) => a.filter(f).length;
   const 要 = c((o) => o.区域判定 === "要確認" || o.要確認理由);
   全大字 += a.length; 全要確認 += 要;
   const 率 = a.length ? Math.round((a.length - 要) / a.length * 1000) / 10 : 0;
-  console.log("    " + 幅(m.市町村名, 16) + 幅(a.length, 8) + 幅(c((o) => o.区域判定 === "b"), 8) +
-    幅(c((o) => o.区域判定 === "c"), 8) + 幅(要, 8) + 率 + "%");
+  if (全部出す || 表示数 < 20) {
+    console.log("    " + 幅(m.市町村名, 16) + 幅(a.length, 8) + 幅(c((o) => o.区域判定 === "b"), 8) +
+      幅(c((o) => o.区域判定 === "c"), 8) + 幅(要, 8) + 率 + "%");
+    表示数++;
+  }
 });
+if (!全部出す && 対象.length > 20) console.log(`    …ほか ${対象.length - 20} 市町村（すべて見るには --all）`);
 console.log("");
 console.log(`    合計 ${全大字} 件のうち、確定 ${全大字 - 全要確認} 件 / 要確認 ${全要確認} 件` +
   (全大字 ? `（確定率 ${Math.round((全大字 - 全要確認) / 全大字 * 1000) / 10}%）` : ""));
