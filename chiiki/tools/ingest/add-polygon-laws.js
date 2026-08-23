@@ -94,18 +94,34 @@ async function main() {
   const 投入した法令 = [];
   for (const l of 法令) {
     const c = (設定.法令 || {})[l];
-    if (!c || !c.ファイル || c.有効 === false) { console.log(`  ${l}: ポリゴン未投入`); continue; }
-    const f = src(c.ファイル);
-    if (!fs.existsSync(f)) { console.log(`  ${l}: ファイルがありません（${c.ファイル}）`); continue; }
-    const features = await geo.read(f);
+    if (!c || c.有効 === false) { console.log(`  ${l}: ポリゴン未投入`); continue; }
+    /* 国土数値情報は都道府県別に落とせます。県を足していけるよう、
+       ファイルは1つでも配列でも書けるようにしています。 */
+    const 一覧 = [].concat(c.ファイル || []);
+    if (!一覧.length) { console.log(`  ${l}: ポリゴン未投入`); continue; }
+    let features = [];
+    const 読めた = [], 無い = [];
+    for (const name of 一覧) {
+      const f = src(name);
+      if (!fs.existsSync(f)) { 無い.push(name); continue; }
+      features = features.concat(await geo.read(f));
+      読めた.push(name);
+    }
+    if (無い.length) console.log(`  ${l}: ファイルがありません（${無い.join("、")}）`);
+    if (!読めた.length) continue;
     索引[l] = { 索引: pip.索引を作る(features, { 緩衝m: c.緩衝m || 設定.緩衝m || pip.既定.緩衝m }), 設定: c };
     投入した法令.push(l);
-    console.log(`  ${l}: ${features.length.toLocaleString()} ポリゴン（${c.ファイル}）`);
+    console.log(`  ${l}: ${features.length.toLocaleString()} ポリゴン（${読めた.join("、")}）`);
   }
   if (!投入した法令.length) {
     console.error("\n  ポリゴンが1つも投入されていません。ポリゴン設定.json を確かめてください。\n");
     process.exit(1);
   }
+
+  /* 都道府県を絞って投入した場合、収録外の県の大字を「どのポリゴンにも入らない＝c」と
+     決めつけてはいけません。設定の「収録県」に県コードを並べると、そこだけを判定します。 */
+  const 収録県 = new Set([].concat(設定.収録県 || []).map(String));
+  if (収録県.size) console.log(`  収録県: ${[...収録県].join("、")}（これ以外の県はポリゴン未判定のままにします）`);
 
   /* --- 大字ごとに判定 --- */
   const 大字行 = [];
@@ -133,6 +149,7 @@ async function main() {
     } else {
       投入した法令.forEach((l) => {
         if (l === "過疎" && 行.過疎) return;                  // 一覧で決まっているものは触らない
+        if (収録県.size && !収録県.has(String(d.市町村コード).slice(0, 2))) return;  // 収録外の県は触らない
         const { 当たり, 境界近い, 境界までm } = pip.引く(索引[l].索引, d.緯度, d.経度);
         if (境界近い) {
           行.要確認理由 = 行.要確認理由 ||
@@ -195,7 +212,10 @@ async function main() {
   });
 
   fs.writeFileSync(src("中間_大字と区域.csv"), CSVにする(大字見出し, 大字行), "utf8");
-  fs.writeFileSync(src("中間_市町村区分.csv"), CSVにする(市町村見出し, 市町村行), "utf8");
+  /* 市町村の区分は地域要件確認表が正です（read_kakuninhyou_pdf.py が作ります）。
+     ここで出すのは、ポリゴンから見た区分が確認表と食い違っていないかを見るための照合用です。
+     中間_市町村区分.csv は上書きしません。 */
+  fs.writeFileSync(src("中間_ポリゴンによる市町村集計.csv"), CSVにする(市町村見出し, 市町村行), "utf8");
 
   const 数 = (f) => 大字行.filter(f).length;
   console.log("");
@@ -208,7 +228,24 @@ async function main() {
   console.log(`  市町村    : ${市町村行.length.toLocaleString()} 件  ` + Object.keys(区分数).map((k) => `${k} ${区分数[k]}`).join(" / "));
   console.log("");
   console.log("  出力: " + path.relative(process.cwd(), src("中間_大字と区域.csv")));
-  console.log("  出力: " + path.relative(process.cwd(), src("中間_市町村区分.csv")));
+  console.log("  出力: " + path.relative(process.cwd(), src("中間_ポリゴンによる市町村集計.csv")) + "（確認表との照合用）");
+  /* 確認表と突き合わせて、食い違う市町村を知らせます。
+     ポリゴンは2016年度基準なので、多少の食い違いは想定内です。
+     数が多い場合は、属性の読み方かファイルの取り違えを疑ってください。 */
+  const 確認表 = 表を読む(src("中間_市町村区分.csv"));
+  if (確認表) {
+    const 正 = new Map(確認表.map((r) => [r.市町村コード, r.区分]));
+    const 食い違い = 市町村行.filter((m) => 正.has(m.市町村コード) && 正.get(m.市町村コード) !== m.区分);
+    console.log("");
+    if (食い違い.length) {
+      console.log(`  確認表と食い違う市町村: ${食い違い.length} / ${市町村行.filter((m) => 正.has(m.市町村コード)).length} 件`);
+      食い違い.slice(0, 6).forEach((m) => console.log(`    ${m.市町村名}: 確認表「${正.get(m.市町村コード)}」／ポリゴン「${m.区分}」`));
+      if (食い違い.length > 6) console.log(`    …ほか ${食い違い.length - 6} 件`);
+      console.log("    判定には確認表を使います。ポリゴンは区域(b/c)を決めるためだけに使っています。");
+    } else {
+      console.log("  ポリゴンから見た市町村区分は、確認表と食い違いませんでした。");
+    }
+  }
   console.log("");
   console.log("  次に:  node chiiki/tools/ingest/build-data.js\n");
 }

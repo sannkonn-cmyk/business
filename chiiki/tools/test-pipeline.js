@@ -115,27 +115,86 @@ let データ = { meta, d1, d2, d3: D("d3_principles.json") };
 execFileSync(process.execPath, [path.join(本体, "tools", "check-data.js")], { env: 環境, stdio: "pipe" });
 真("check-data がエラーなしで通る", true);
 
-/* ---------- ③ 4法令すべてを投入した場合 ---------- */
-console.log("\n[③ 4法令すべてを投入した場合]");
+/* ---------- ③ ポリゴンで山村・離島・半島を埋める ---------- */
+console.log("\n[③ ポリゴンで山村・離島・半島を埋める]");
+{
+  /* 位置参照情報を CSV で置きます（実運用では配布zipをそのまま読みます） */
+  fs.writeFileSync(S("isj.csv"),
+    '"都道府県コード","都道府県名","市区町村コード","市区町村名","大字町丁目コード","大字町丁目名","緯度","経度"\n' +
+    isj.map((r) => ['99', r.都道府県名, r.市町村コード, r.市町村名, r.大字コード, r.大字名, r.緯度, r.経度]
+      .map((v) => '"' + v + '"').join(",")).join("\n") + "\n");
+
+  /* 丁市の「本町」(35.0,133.0) だけを囲む四角。「甲原町日吉」(35.1,133.0) は外。 */
+  const 山村 = { type: "FeatureCollection", features: [{
+    type: "Feature", properties: { 名称: "架空振興山村", 旧市町村: "旧本町村" },
+    geometry: { type: "Polygon", coordinates: [[[132.99, 34.99], [133.01, 34.99], [133.01, 35.01], [132.99, 35.01], [132.99, 34.99]]] }
+  }] };
+  /* どこにも当たらない、遠くの離島 */
+  const 離島 = { type: "FeatureCollection", features: [{
+    type: "Feature", properties: { 島名: "架空島" },
+    geometry: { type: "Polygon", coordinates: [[[120.0, 20.0], [120.1, 20.0], [120.1, 20.1], [120.0, 20.1], [120.0, 20.0]]] }
+  }] };
+  fs.writeFileSync(S("yamamura.geojson"), JSON.stringify(山村));
+  fs.writeFileSync(S("ritou.geojson"), JSON.stringify(離島));
+  fs.writeFileSync(S("ポリゴン設定.json"), JSON.stringify({
+    位置参照情報: "isj.csv",
+    緩衝m: 50,
+    収録県: ["99"],
+    法令: {
+      山村: { ファイル: ["yamamura.geojson"], 区域名の属性: ["旧市町村", "名称"] },
+      離島: { ファイル: "ritou.geojson", 区域名の属性: ["島名"] }
+    }
+  }, null, 2));
+
+  const 出 = 走らせる("add-polygon-laws.js");
+  真("add-polygon-laws.js が動く", 出.indexOf("大字") >= 0, 出.slice(0, 200));
+  真("複数ファイル指定（配列）を受け付ける", 出.indexOf("yamamura.geojson") >= 0);
+  真("未投入の法令はそう表示する", 出.indexOf("半島: ポリゴン未投入") >= 0, 出);
+
+  const 表 = fs.readFileSync(S("中間_大字と区域.csv"), "utf8").split("\n");
+  const 見 = 表[0].split(",");
+  const 行 = (コード) => {
+    const r = 表.find((x) => x.startsWith(コード));
+    const v = r.split(",");
+    const o = {}; 見.forEach((h, i) => { o[h] = v[i]; }); return o;
+  };
+  真("ポリゴンの中の大字 → 山村(b)", 行("992040001000").山村 === "b", JSON.stringify(行("992040001000")));
+  真("ポリゴンの外の大字 → 山村(c)", 行("992040002000").山村 === "c");
+  真("どこにも当たらない離島 → すべて(c)", 行("992040001000").離島 === "c" && 行("992040002000").離島 === "c");
+  真("半島はポリゴン未投入なので空のまま", 行("992040001000").半島 === "");
+  真("決め方に点inが記録される", (行("992040002000").決め方 || "").indexOf("点in") >= 0, 行("992040002000").決め方);
+  真("過疎は一覧で決めたものを触らない", 行("992040002000").過疎 === "b" && 行("992040002000").旧市町村名 === "旧甲原村",
+     JSON.stringify(行("992040002000")));
+}
+
+/* ---------- ④ 4法令すべてを投入した場合 ---------- */
+console.log("\n[④ 4法令すべてを投入した場合]");
 fs.writeFileSync(S("取得記録.json"), JSON.stringify({
   基準日: "架空4年4月1日", 収録法令: ["過疎", "山村", "離島", "半島"],
   資料: [{ 名称: "架空の地域要件確認表", url: "", 現在日: "架空4年4月1日", 取得日: "2026-08-23" }]
 }, null, 2));
-/* 山村・離島・半島も判定済みにする（本来は add-polygon-laws.js が埋めます） */
 {
-  const 行 = 突合.map((r) => Object.assign({}, r, { 山村: "c", 離島: "c", 半島: "c" }));
-  行.forEach((r) => { if (r.過疎 === "b") { r.山村 = "c"; r.離島 = "c"; r.半島 = "c"; } });
-  fs.writeFileSync(S("中間_大字と区域.csv"), 前.CSVにする(行));
+  /* 半島も投入した状態にする */
+  const 表 = fs.readFileSync(S("中間_大字と区域.csv"), "utf8").split("\n");
+  const 見 = 表[0].split(",");
+  const i半島 = 見.indexOf("半島");
+  const 出 = [表[0]].concat(表.slice(1).filter(Boolean).map((r) => {
+    const v = r.split(","); v[i半島] = "c"; return v.join(",");
+  }));
+  fs.writeFileSync(S("中間_大字と区域.csv"), 出.join("\n") + "\n");
 }
 走らせる("build-data.js");
 d1 = D("d1_municipalities.json"); d2 = D("d2_oaza.json"); meta = D("meta.json");
 データ = { meta, d1, d2, d3: D("d3_principles.json") };
 真("4法令が揃うと verified になる", meta.dataStatus === "verified", meta.dataStatus);
-真("同じ大字が (c) に確定する", (d2.大字.find((o) => o.大字名 === "本町") || {}).区域判定 === "c");
-真("判定：(c) → 対象", Judge.judge({ cityCode: "99204", oazaId: "992040001000" }, データ).result === "対象");
+真("山村に当たる大字は (b) に確定する", (d2.大字.find((o) => o.大字名 === "本町") || {}).区域判定 === "b",
+   JSON.stringify(d2.大字.find((o) => o.大字名 === "本町")));
+真("判定：山村(b) → 対象外", Judge.judge({ cityCode: "99204", oazaId: "992040001000" }, データ).result === "対象外");
 {
-  const txt = Report.build(Judge.judge({ cityCode: "99204", oazaId: "992040001000" }, データ), データ);
-  真("暫定の警告が消える", txt.indexOf("決裁資料に用いないでください") < 0);
+  const r = Judge.judge({ cityCode: "99204", oazaId: "992040001000" }, データ);
+  真("根拠に区域の法令が出る", (r.reasons || []).some((x) => (x.value || "").indexOf("山村") >= 0),
+     JSON.stringify(r.reasons));
+  真("暫定の警告が消える", Report.build(r, データ).indexOf("決裁資料に用いないでください") < 0);
 }
 execFileSync(process.execPath, [path.join(本体, "tools", "ingest", "report-coverage.js")], { env: 環境, stdio: "pipe" });
 真("report-coverage が動く", true);
