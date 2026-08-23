@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地域おこし協力隊 地域要件確認ツール</title>
+<!--[[CSS]]-->
+</head>
+<body>
+
+<header>
+  <h1>地域おこし協力隊　地域要件確認ツール</h1>
+  <span class="note">転入地：島根県雲南市</span>
+  <span class="spacer"></span>
+  <span class="badge" id="badgeDate">データ基準日 —</span>
+  <span class="badge warn" id="badgeStatus">暫定</span>
+  <button class="hbtn" id="btnHistory" type="button">履歴</button>
+  <button class="hbtn" id="btnAbout" type="button">データ・出典について</button>
+</header>
+
+<div class="alert-bar" id="alertBar" hidden>
+  <b id="alertHead"></b>
+  <span id="alertBody"></span>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= 左：入力 ================= -->
+  <section class="panel">
+    <h2>入力</h2>
+    <div class="form-body">
+
+      <div class="field">
+        <span class="lab">転入地</span>
+        <div class="fixed-box">
+          <div class="fixed-name" id="inName">島根県雲南市</div>
+          <div class="fixed-sub" id="inKubun"></div>
+          <div class="fixed-sub" id="inRoot"></div>
+        </div>
+        <p class="hint">このツールは雲南市への転入を判定します。転入先の住所を入れる必要はありません。</p>
+      </div>
+
+      <div class="field" id="addrField">
+        <span class="lab">応募者の現住所（転出地）</span>
+
+        <label class="sublab" for="selPref">都道府県</label>
+        <select id="selPref"></select>
+
+        <label class="sublab mt" for="selCity">市町村</label>
+        <select id="selCity" disabled></select>
+
+        <label class="sublab mt" for="selOaza">大字・町丁目</label>
+        <select id="selOaza" disabled></select>
+        <p class="hint" id="oazaHint">市町村を選ぶと、必要な場合だけ大字を選べるようになります。</p>
+      </div>
+
+      <div class="field">
+        <span class="lab">例外ルート</span>
+        <p class="hint" style="margin-top:0">
+          次のいずれかに当てはまる方は、住所にかかわらず対象となります（仕様書 §3-2）。
+        </p>
+        <label class="check mt"><input type="checkbox" id="ex1"><span>地域おこし協力隊の経験者（同一地域で2年以上活動し、解嘱から1年以内）</span></label>
+        <label class="check mt"><input type="checkbox" id="ex2"><span>海外に在留し、市町村の住民基本台帳に登録されていない</span></label>
+        <label class="check mt"><input type="checkbox" id="ex3"><span>JETプログラムの終了者（2年以上参加し、終了から1年以内）</span></label>
+      </div>
+
+    </div>
+    <div class="actions">
+      <button class="btn btn-sub" id="btnClear" type="button">入力をクリア</button>
+    </div>
+  </section>
+
+  <!-- ================= 右：結果 ================= -->
+  <section>
+    <div class="preview-head">
+      <h2>判定結果</h2>
+      <span class="cap">入力に合わせてすぐに反映されます</span>
+    </div>
+
+    <div class="verdict" id="verdict" data-state="none">
+      <div class="verdict-mark" id="verdictMark">—</div>
+      <div class="verdict-text" id="verdictText">住所を選んでください</div>
+    </div>
+
+    <ol class="steps" id="steps">
+      <li id="step1"><span class="no">①</span><span class="tx">住所</span><span class="rs"></span></li>
+      <li id="step2"><span class="no">②</span><span class="tx">市町村区分</span><span class="rs"></span></li>
+      <li id="step3"><span class="no">③</span><span class="tx">区域(b/c)</span><span class="rs"></span></li>
+    </ol>
+
+    <ul class="warns" id="warns"></ul>
+
+    <div class="panel report-panel">
+      <h2>根拠テキスト（決裁添付用）</h2>
+      <pre class="report" id="report"></pre>
+      <div class="actions">
+        <button class="btn btn-main" id="btnCopy" type="button">コピー</button>
+        <button class="btn btn-sub" id="btnPrint" type="button">印刷</button>
+        <button class="btn btn-sub" id="btnSave" type="button">.txt で保存</button>
+        <span class="spacer"></span>
+        <button class="btn btn-sub" id="btnKeep" type="button">履歴に残す</button>
+      </div>
+      <p class="hint foot-hint">
+        履歴は「履歴に残す」を押したときだけ保存されます。押さなければ、入力した住所はこのパソコンに残りません。
+      </p>
+    </div>
+
+    <p class="credit" id="credit"></p>
+  </section>
+</div>
+
+<!-- ================= 履歴 ================= -->
+<dialog id="dlgHistory">
+  <h3>判定の履歴</h3>
+  <div class="dlg-body">
+    <p class="caution">
+      <b>応募者の住所がこのパソコンに残ります。</b>
+      共有の端末をお使いの場合は、使い終わったら「すべて削除」を押してください。
+      履歴はこのブラウザの中だけに保存され、外部には送信されません。
+    </p>
+    <div id="historyList"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-sub" id="btnHistClear" type="button">すべて削除</button>
+    <span class="spacer"></span>
+    <button class="btn btn-main" id="btnHistClose" type="button">閉じる</button>
+  </div>
+</dialog>
+
+<!-- ================= データ・出典 ================= -->
+<dialog id="dlgAbout">
+  <h3>データ・出典について</h3>
+  <div class="dlg-body" id="aboutBody"></div>
+  <div class="dlg-foot">
+    <button class="btn btn-main" id="btnAboutClose" type="button">閉じる</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- 印刷はここだけを出します -->
+<div class="print-only" id="printArea"></div>
+
+<!--[[DATA]]-->
+<!--[[JUDGE]]-->
+<!--[[REPORT]]-->
+<!--[[APP]]-->
+</body>
+</html>
